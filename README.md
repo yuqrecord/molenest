@@ -32,6 +32,10 @@ Create or edit the TOML config:
 molenest config edit
 ```
 
+When a command needs the config file and it does not exist yet, `molenest` asks
+whether to create a default file. If you approve, it writes the file and
+continues.
+
 Example:
 
 ```toml

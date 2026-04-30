@@ -1,6 +1,7 @@
 use crate::config::{Config, ForwardPreset};
 use anyhow::{Result, anyhow};
-use inquire::{Select, Text};
+use inquire::{Confirm, Select, Text};
+use is_terminal::IsTerminal;
 
 pub fn select_preset(config: &Config) -> Result<ForwardPreset> {
     if config.forwards.is_empty() {
@@ -41,6 +42,22 @@ pub fn prompt_new_preset() -> Result<ForwardPreset> {
     };
     preset.validate()?;
     Ok(preset)
+}
+
+pub fn confirm_create_config(path: &std::path::Path) -> Result<bool> {
+    if !std::io::stdin().is_terminal() {
+        return Err(anyhow!(
+            "Config file does not exist at {}. Run interactively to create it, or run `molenest config edit`.",
+            path.display()
+        ));
+    }
+
+    Ok(Confirm::new(&format!(
+        "Config file does not exist at {}. Create it?",
+        path.display()
+    ))
+    .with_default(true)
+    .prompt()?)
 }
 
 fn prompt_port(message: &str) -> Result<u16> {
