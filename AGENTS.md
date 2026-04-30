@@ -9,6 +9,9 @@ Primary use cases include quickly forwarding ports for remote `marimo`, Jupyter 
 
 Example scenario: the user registers forwarding presets for local ports `8888` through `88899`, then chooses the desired preset interactively when launching `molenest`.
 
+`molenest` should rely on the user's existing OpenSSH configuration wherever possible.
+Connection details such as host aliases, usernames, ports, identity files, jump hosts, proxy commands, and host key behavior should be inherited from the system `ssh` command and the user's `.ssh/config` rather than duplicated in `molenest` configuration.
+
 ## Core goals
 
 - Build a reliable Rust CLI tool that works on Windows, macOS, and Linux.
@@ -25,6 +28,7 @@ Example scenario: the user registers forwarding presets for local ports `8888` t
 - Do not require a daemon/service for the initial MVP.
 - Do not implement cloud sync or remote configuration.
 - Do not depend on shell-specific behavior where a Rust-native approach is possible.
+- Do not reimplement OpenSSH config parsing or duplicate SSH connection profile management.
 
 ## Target platforms
 
@@ -40,6 +44,7 @@ Important cross-platform considerations:
 
 - Use `std::process::Command` rather than shelling out through `sh`, `bash`, `cmd`, or PowerShell unless there is a strong reason.
 - Assume the system has an `ssh` executable available in `PATH`, or allow the user to configure the SSH binary path.
+- Let the system `ssh` executable resolve `~/.ssh/config`, `Host` aliases, `User`, `Port`, `IdentityFile`, `ProxyJump`, `ProxyCommand`, and related OpenSSH settings.
 - Use platform-appropriate config directories through the `directories` crate.
 - Use platform-safe file locking or session metadata when tracking background processes.
 - Avoid Unix-only process assumptions unless protected with `cfg(unix)`.
@@ -84,8 +89,6 @@ host = "my-server"
 local_port = 8888
 remote_host = "127.0.0.1"
 remote_port = 8888
-user = "alice"
-identity_file = "~/.ssh/id_ed25519"
 
 [[forwards]]
 name = "marimo-2718"
@@ -93,20 +96,28 @@ host = "gpu-server"
 local_port = 2718
 remote_host = "127.0.0.1"
 remote_port = 2718
-user = "alice"
 ```
 
 The resulting SSH command should be equivalent to:
 
 ```text
-ssh -N -L <local_port>:<remote_host>:<remote_port> <user>@<host>
+ssh -N -L <local_port>:<remote_host>:<remote_port> <host>
 ```
 
-When `identity_file` is set, add:
+The `host` field should normally be an OpenSSH `Host` alias from the user's `.ssh/config`.
+For example, if `.ssh/config` contains:
 
 ```text
--i <identity_file>
+Host my-server
+    HostName example.com
+    User alice
+    Port 2222
+    IdentityFile ~/.ssh/id_ed25519
+    ProxyJump jump-host
 ```
+
+then `host = "my-server"` should be enough for `molenest`.
+`molenest` should pass `my-server` as the SSH destination and let `ssh` apply the full OpenSSH configuration.
 
 Optional future fields:
 
@@ -114,6 +125,8 @@ Optional future fields:
 extra_args = ["-J", "jump-host"]
 strict_host_key_checking = true
 bind_address = "127.0.0.1"
+user = "alice"
+identity_file = "~/.ssh/id_ed25519"
 ```
 
 If `bind_address` is provided, construct forwarding as:
@@ -121,6 +134,9 @@ If `bind_address` is provided, construct forwarding as:
 ```text
 <bind_address>:<local_port>:<remote_host>:<remote_port>
 ```
+
+`user` and `identity_file` may be considered later as explicit per-preset overrides, but they should not be required for the MVP.
+If implemented, they must be translated to normal SSH arguments such as `alice@my-server` or `-i <identity_file>` without bypassing `.ssh/config`.
 
 ## CLI design
 
@@ -196,8 +212,11 @@ Command::new(ssh_binary)
     .arg("-N")
     .arg("-L")
     .arg(format!("{}:{}:{}", local_port, remote_host, remote_port))
-    .arg(destination);
+    .arg(host);
 ```
+
+Here `host` is the configured SSH destination, usually an OpenSSH `Host` alias.
+Do not expand or reinterpret `.ssh/config` inside `molenest`; the spawned `ssh` process should do that.
 
 Avoid:
 
@@ -213,6 +232,7 @@ Security requirements:
 - Never store passwords.
 - Do not execute arbitrary shell fragments from config.
 - Treat `extra_args` as advanced user-provided SSH arguments, passed as individual arguments only.
+- Prefer `.ssh/config` for SSH connection details. Avoid encouraging users to store usernames, identity files, jump hosts, or proxy commands in `molenest` config unless they are explicit overrides.
 - Validate port numbers are in `1..=65535`.
 - Validate preset names are non-empty and suitable for display.
 
@@ -224,6 +244,7 @@ Examples:
 
 - Config file not found: explain how to create one or run `molenest add`.
 - SSH executable not found: suggest installing OpenSSH or setting `ssh_binary`.
+- SSH host alias not found or cannot be resolved: suggest checking the `host` value and the user's `.ssh/config`.
 - Port already in use: say which local port appears unavailable.
 - Unknown preset: show nearby configured preset names if possible.
 - Failed to start SSH: display the exit/status information when available.
@@ -264,6 +285,7 @@ Add tests for:
 - Config parsing.
 - Config serialization.
 - SSH command argument construction.
+- SSH command construction that preserves the configured host alias and does not inline `.ssh/config` details.
 - Preset lookup by name.
 - Invalid port validation.
 - Session metadata read/write.
@@ -311,6 +333,7 @@ The README should include:
 - What `molenest` does.
 - Installation instructions.
 - Example config file.
+- How `host` maps to an existing OpenSSH `.ssh/config` `Host` alias.
 - Common commands.
 - Windows/macOS/Linux notes.
 - Security notes about SSH keys and passwords.
@@ -372,6 +395,7 @@ Port binding may fail if:
 - security software blocks SSH;
 - OpenSSH is not installed or not in `PATH`;
 - the SSH config requires interactive input;
+- the `host` alias is missing or misconfigured in `.ssh/config`;
 - the remote host cannot be reached.
 
 The `doctor` command should detect as many of these issues as practical without making destructive changes.
