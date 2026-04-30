@@ -46,10 +46,7 @@ pub fn prompt_new_preset() -> Result<ForwardPreset> {
 
 pub fn confirm_create_config(path: &std::path::Path) -> Result<bool> {
     if !std::io::stdin().is_terminal() {
-        return Err(anyhow!(
-            "Config file does not exist at {}. Run interactively to create it, or run `molenest config edit`.",
-            path.display()
-        ));
+        return Ok(false);
     }
 
     Ok(Confirm::new(&format!(

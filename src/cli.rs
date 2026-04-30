@@ -64,7 +64,13 @@ impl Cli {
 
 fn start(name: Option<String>) -> Result<()> {
     let config_path = paths::config_file()?;
-    let config = load_config_or_prompt_create(&config_path)?;
+    let Some(config) = load_config_or_prompt_create(&config_path)? else {
+        return Ok(());
+    };
+    if config.forwards.is_empty() {
+        print_no_presets_message();
+        return Ok(());
+    }
     let preset = match name {
         Some(name) => find_preset(&config, &name)?.clone(),
         None => ui::select_preset(&config)?,
@@ -81,9 +87,11 @@ fn stop(selector: &str) -> Result<()> {
 
 fn list_presets() -> Result<()> {
     let config_path = paths::config_file()?;
-    let config = load_config_or_prompt_create(&config_path)?;
+    let Some(config) = load_config_or_prompt_create(&config_path)? else {
+        return Ok(());
+    };
     if config.forwards.is_empty() {
-        println!("No forwarding presets configured.");
+        print_no_presets_message();
         return Ok(());
     }
 
@@ -132,7 +140,9 @@ fn list_sessions() -> Result<()> {
 
 fn add_preset() -> Result<()> {
     let config_path = paths::config_file()?;
-    let mut config = load_config_or_prompt_create(&config_path)?;
+    let Some(mut config) = load_config_or_prompt_create(&config_path)? else {
+        return Ok(());
+    };
     let preset = ui::prompt_new_preset()?;
     if config.find_preset(&preset.name).is_some() {
         return Err(anyhow!("Preset already exists: {}", preset.name));
@@ -145,7 +155,13 @@ fn add_preset() -> Result<()> {
 
 fn remove_preset(name: &str) -> Result<()> {
     let config_path = paths::config_file()?;
-    let mut config = load_config_or_prompt_create(&config_path)?;
+    let Some(mut config) = load_config_or_prompt_create(&config_path)? else {
+        return Ok(());
+    };
+    if config.forwards.is_empty() {
+        print_no_presets_message();
+        return Ok(());
+    }
     let removed = config.remove_preset(name)?;
     config.save(&config_path)?;
     println!("Removed preset {}.", removed.name);
@@ -160,7 +176,10 @@ fn config_path() -> Result<()> {
 fn config_edit() -> Result<()> {
     let path = paths::config_file()?;
     if !path.exists() {
-        create_config_after_confirmation(&path)?;
+        if !create_config_after_confirmation(&path)? {
+            print_config_required_message(&path);
+            return Ok(());
+        }
     } else {
         paths::ensure_parent(&path)?;
     }
@@ -171,7 +190,9 @@ fn doctor() -> Result<()> {
     let config_path = paths::config_file()?;
     println!("Config path: {}", config_path.display());
 
-    let config = load_config_or_prompt_create(&config_path)?;
+    let Some(config) = load_config_or_prompt_create(&config_path)? else {
+        return Ok(());
+    };
     match config.validate() {
         Ok(()) => println!("Config: ok"),
         Err(error) => println!("Config: error: {error:#}"),
@@ -207,9 +228,9 @@ fn start_preset(config: &Config, preset: &ForwardPreset) -> Result<()> {
     Ok(())
 }
 
-fn load_config_or_prompt_create(path: &Path) -> Result<Config> {
+fn load_config_or_prompt_create(path: &Path) -> Result<Option<Config>> {
     if path.exists() {
-        return Config::load(path).with_context(|| {
+        return Config::load(path).map(Some).with_context(|| {
             format!(
                 "Config file is invalid. Edit it with `molenest config edit`: {}",
                 path.display()
@@ -217,20 +238,33 @@ fn load_config_or_prompt_create(path: &Path) -> Result<Config> {
         });
     }
 
-    create_config_after_confirmation(path)?;
-    Config::load(path)
+    if create_config_after_confirmation(path)? {
+        Config::load(path).map(Some)
+    } else {
+        print_config_required_message(path);
+        Ok(None)
+    }
 }
 
-fn create_config_after_confirmation(path: &Path) -> Result<()> {
+fn create_config_after_confirmation(path: &Path) -> Result<bool> {
     if ui::confirm_create_config(path)? {
         Config::default().save(path)?;
         println!("Created config file: {}", path.display());
-        Ok(())
+        Ok(true)
     } else {
-        Err(anyhow!(
-            "Config file is required. Run `molenest config edit` or `molenest add` when ready."
-        ))
+        Ok(false)
     }
+}
+
+fn print_config_required_message(path: &Path) {
+    println!("Config file is required to run molenest.");
+    println!("No config file was created: {}", path.display());
+    println!("Run `molenest config edit` or `molenest add` when ready.");
+}
+
+fn print_no_presets_message() {
+    println!("No forwarding presets are configured.");
+    println!("Edit the config with `molenest config edit` or add one with `molenest add`.");
 }
 
 fn find_preset<'a>(config: &'a Config, name: &str) -> Result<&'a ForwardPreset> {

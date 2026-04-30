@@ -34,7 +34,12 @@ molenest config edit
 
 When a command needs the config file and it does not exist yet, `molenest` asks
 whether to create a default file. If you approve, it writes the file and
-continues.
+continues. If you decline, `molenest` prints that the config file is required
+and exits successfully without creating anything.
+
+If the config file exists but has no forwarding presets yet, commands that need
+a preset will prompt you to edit the config or add a preset, then exit
+successfully.
 
 Example:
 
