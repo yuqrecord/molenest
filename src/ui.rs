@@ -56,7 +56,7 @@ pub fn confirm_create_config(path: &std::path::Path) -> Result<bool> {
         "Config file does not exist at {}. Create it?",
         path.display()
     ))
-    .with_default(true)
+    .with_default(false)
     .prompt()?)
 }
 
