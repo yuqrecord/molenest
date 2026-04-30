@@ -17,3 +17,12 @@ which = "6.0"
 
 [build-dependencies]
 slint-build = "1.8"
+
+[package.metadata.bundle]
+name = "molenest"
+identifier = "dev.ishida.molenest"
+short_description = "A desktop SSH port-forwarding preset manager"
+long_description = """
+molenest is a cross-platform desktop app for starting and monitoring SSH local
+port forwarding from reusable presets.
+"""

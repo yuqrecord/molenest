@@ -116,10 +116,8 @@ fn start_event_timer(
             changed = true;
         }
 
-        if changed {
-            if let Some(window) = window_weak.upgrade() {
-                sync_window(&window, &state.borrow());
-            }
+        if changed && let Some(window) = window_weak.upgrade() {
+            sync_window(&window, &state.borrow());
         }
     });
     timer
@@ -473,10 +471,11 @@ fn open_config_editor(path: &Path) -> Result<()> {
 }
 
 fn editor_command(path: &Path) -> (String, Vec<String>) {
-    if let Ok(editor) = std::env::var("EDITOR").or_else(|_| std::env::var("VISUAL")) {
-        if !editor.trim().is_empty() && !editor.contains(char::is_whitespace) {
-            return (editor, vec![path.display().to_string()]);
-        }
+    if let Ok(editor) = std::env::var("EDITOR").or_else(|_| std::env::var("VISUAL"))
+        && !editor.trim().is_empty()
+        && !editor.contains(char::is_whitespace)
+    {
+        return (editor, vec![path.display().to_string()]);
     }
 
     if cfg!(windows) {

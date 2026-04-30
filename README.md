@@ -1,45 +1,96 @@
 # molenest
 
-`molenest` is a cross-platform command-line helper for starting SSH local port
-forwarding from reusable presets.
+`molenest` is a cross-platform desktop app for starting and monitoring SSH local
+port forwarding from reusable presets.
 
 It is designed for workflows such as forwarding remote marimo, Jupyter,
 JupyterLab, VS Code tunnel, dashboard, or web app ports without retyping long
 `ssh -L` commands.
 
-## Installation
+The app is built with Rust and Slint. It keeps SSH forwarding processes attached
+to the running app, so the window can show status, recent SSH output, local URLs,
+and failures. Closing the app stops the SSH processes it started during that run.
 
-From this repository:
+## Requirements
+
+- Rust 2024 edition capable toolchain.
+- A working `ssh` executable in `PATH`, or `ssh_binary` set in the config file.
+- Windows 10/11, macOS, or Linux.
+
+## Run From Source
 
 ```text
-cargo install --path .
+cargo run
 ```
 
-You need a working `ssh` executable in `PATH`, or set `ssh_binary` in the
-configuration file.
+Build a release binary:
+
+```text
+cargo build --release
+```
+
+The release executable is written to:
+
+- Windows: `target/release/molenest.exe`
+- macOS/Linux: `target/release/molenest`
+
+On Windows release builds, `molenest` uses the Windows GUI subsystem so launching
+the `.exe` does not open an extra console window.
+
+## Create A Windows `.exe`
+
+From Windows:
+
+```text
+cargo build --release
+```
+
+The app executable will be:
+
+```text
+target/release/molenest.exe
+```
+
+For distribution, ship that `.exe` together with any runtime assets required by
+your target environment. The MVP does not yet include an installer or auto-update
+flow.
+
+## Create A macOS `.app`
+
+Install `cargo-bundle` once:
+
+```text
+cargo install cargo-bundle
+```
+
+Create an app bundle:
+
+```text
+cargo bundle --release
+```
+
+The generated app is typically written to:
+
+```text
+target/release/bundle/osx/molenest.app
+```
+
+For sharing outside your own machine, macOS signing and notarization are still
+needed. Those release steps are not automated in the MVP.
 
 ## Configuration
 
-Show the config path:
+`molenest` uses a human-editable TOML config file.
 
-```text
-molenest config path
-```
+Default path:
 
-Create or edit the TOML config:
+- Linux: `$XDG_CONFIG_HOME/molenest/config.toml` or `~/.config/molenest/config.toml`
+- macOS: `$XDG_CONFIG_HOME/molenest/config.toml` or `~/.config/molenest/config.toml`
+- Windows: `%XDG_CONFIG_HOME%\\molenest\\config.toml` or `%USERPROFILE%\\.config\\molenest\\config.toml`
 
-```text
-molenest config edit
-```
-
-When a command needs the config file and it does not exist yet, `molenest` asks
-whether to create a default file. If you approve, it writes the file and
-continues. If you decline, `molenest` prints that the config file is required
-and exits successfully without creating anything.
-
-If the config file exists but has no forwarding presets yet, commands that need
-a preset will prompt you to edit the config or add a preset, then exit
-successfully.
+If the config file does not exist, the app creates a default empty config on
+startup. Use **Edit Config** in the app to open it in a platform editor, then use
+**Reload** after saving changes.
 
 Example:
 
@@ -67,34 +118,28 @@ For example, if your SSH config contains `Host my-server`, `molenest` passes
 `my-server` directly to `ssh` and lets OpenSSH apply `HostName`, `User`, `Port`,
 `IdentityFile`, `ProxyJump`, `ProxyCommand`, and host key settings.
 
-## Commands
+## Main Workflow
 
-```text
-molenest                 # select a preset interactively and start it
-molenest start NAME      # start a preset
-molenest stop ID_OR_NAME # stop a known session
-molenest list            # list configured presets
-molenest sessions        # list known sessions
-molenest add             # interactively add a preset
-molenest remove NAME     # remove a preset
-molenest config path     # print config path
-molenest config edit     # open config in $EDITOR or a fallback editor
-molenest doctor          # validate config and SSH availability
-```
+1. Open `molenest`.
+2. Select a forwarding preset.
+3. Press **Start**.
+4. Watch the status and recent SSH output in the detail panel.
+5. Use the local URL shown by the app.
+6. Press **Stop** or close the app to end the SSH process.
 
-## Platform Notes
+The MVP intentionally manages connections only while the GUI app is running.
+There is no daemon or detached session store yet.
 
-`molenest` supports Windows, macOS, and Linux. It starts the system `ssh`
-binary directly with argument arrays rather than shell command strings.
+## Doctor
 
-Default paths:
+Use **Doctor** in the app to check:
 
-- Config: `$XDG_CONFIG_HOME/molenest/config.toml` or `~/.config/molenest/config.toml`
-- Sessions: `$XDG_DATA_HOME/molenest/sessions` or `~/.local/share/molenest/sessions`
+- config validity;
+- SSH executable availability;
+- whether each configured local port appears bindable.
 
-On Windows, `%XDG_CONFIG_HOME%` and `%XDG_DATA_HOME%` are honored when set;
-otherwise the same `.config` and `.local/share` layout under `%USERPROFILE%` is
-used.
+The port check is best-effort. A port can still become unavailable between the
+doctor check and starting SSH.
 
 ## Security Notes
 
@@ -102,3 +147,20 @@ used.
 connection details in OpenSSH config and use `molenest` only for forwarding
 presets. Advanced `extra_args` are passed as individual arguments to `ssh`; they
 are never executed through a shell.
+
+## Developer Checks
+
+Run the usual checks before committing:
+
+```text
+cargo fmt
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
+cargo doc --no-deps --all-features
+```
+
+Open the generated API docs locally:
+
+```text
+open target/doc/molenest/index.html
+```
