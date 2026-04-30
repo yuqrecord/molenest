@@ -96,6 +96,7 @@ fn connect_callbacks(
             handle_callback_result(result, &add_state);
             if added {
                 clear_draft_fields(&window);
+                window.set_add_dialog_open(false);
             }
             sync_window(&window, &add_state.borrow());
         }

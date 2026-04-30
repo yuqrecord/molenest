@@ -89,9 +89,10 @@ Default path:
 - Windows: `%XDG_CONFIG_HOME%\\molenest\\config.toml` or `%USERPROFILE%\\.config\\molenest\\config.toml`
 
 If the config file does not exist, the app creates a default empty config on
-startup. Fill in **Name**, **Host**, **Local Port**, **Remote Host**, and
-**Remote Port**, then press **Add Preset** to append a preset to the config
-file. Use **Reload** after editing the TOML file outside the app.
+startup. Press **Add Preset** to open the preset form. Fill in **Name**,
+**Host**, **Local Port**, **Remote Host**, and **Remote Port**, then press
+**Add** to append a preset to the config file. Use **Reload** after editing the
+TOML file outside the app.
 
 Example:
 
@@ -122,7 +123,7 @@ For example, if your SSH config contains `Host my-server`, `molenest` passes
 ## Main Workflow
 
 1. Open `molenest`.
-2. Add a preset with the form if the list is empty.
+2. Add a preset with **Add Preset** if the list is empty.
 3. Select a forwarding preset.
 4. Press **Start**.
 5. Watch the status and recent SSH output in the detail panel.

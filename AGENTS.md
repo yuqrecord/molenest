@@ -153,7 +153,7 @@ Expected UI areas:
 - A preset list showing name, SSH host, local port, remote host, remote port, and current status.
 - Start and stop controls for the selected preset.
 - A connection detail area showing command summary, local URL, process state, start time, and recent SSH output.
-- A simple add-preset form for name, host, local port, remote host, and remote port.
+- An add-preset button that opens a focused form for name, host, local port, remote host, and remote port.
 - A visible configuration path and reload action.
 - A doctor/check action for config validity and SSH availability.
 

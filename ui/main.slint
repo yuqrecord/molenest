@@ -35,6 +35,7 @@ export component MainWindow inherits Window {
     in-out property <string> draft-local-port;
     in-out property <string> draft-remote-host: "127.0.0.1";
     in-out property <string> draft-remote-port;
+    in-out property <bool> add-dialog-open;
 
     callback selected(int);
     callback start-requested();
@@ -67,6 +68,10 @@ export component MainWindow inherits Window {
 
             HorizontalLayout {
                 spacing: 8px;
+                Button {
+                    text: "Add Preset";
+                    clicked => { root.add-dialog-open = true; }
+                }
                 Button {
                     text: "Doctor";
                     clicked => { root.doctor-requested(); }
@@ -108,7 +113,7 @@ export component MainWindow inherits Window {
                     if root.presets.length == 0 : Rectangle {
                         height: 420px;
                         Text {
-                            text: "No presets found. Add one with the form on the right.";
+                            text: "No presets found. Use Add Preset to create one.";
                             color: #657080;
                             vertical-alignment: center;
                             horizontal-alignment: center;
@@ -154,35 +159,7 @@ export component MainWindow inherits Window {
 
                 VerticalLayout {
                     padding: 14px;
-                    spacing: 10px;
-
-                    Text {
-                        text: "Add Preset";
-                        font-size: 18px;
-                        font-weight: 700;
-                        color: #20242a;
-                    }
-
-                    GridLayout {
-                        spacing: 7px;
-                        Text { text: "Name"; color: #657080; }
-                        LineEdit { text <=> root.draft-name; }
-                        Text { text: "Host"; color: #657080; }
-                        LineEdit { text <=> root.draft-host; }
-                        Text { text: "Local Port"; color: #657080; }
-                        LineEdit { text <=> root.draft-local-port; input-type: number; }
-                        Text { text: "Remote Host"; color: #657080; }
-                        LineEdit { text <=> root.draft-remote-host; }
-                        Text { text: "Remote Port"; color: #657080; }
-                        LineEdit { text <=> root.draft-remote-port; input-type: number; }
-                    }
-
-                    Button {
-                        text: "Add Preset";
-                        clicked => { root.add-preset-requested(); }
-                    }
-
-                    Rectangle { height: 1px; background: #e6eaf0; }
+                    spacing: 12px;
 
                     Text {
                         text: root.details.name == "" ? "Connection" : root.details.name;
@@ -266,6 +243,78 @@ export component MainWindow inherits Window {
                 color: #475467;
                 vertical-alignment: center;
                 horizontal-alignment: left;
+            }
+        }
+    }
+
+    if root.add-dialog-open : Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        background: #00000066;
+
+        TouchArea {}
+
+        Rectangle {
+            width: 520px;
+            height: 430px;
+            x: (root.width - self.width) / 2;
+            y: (root.height - self.height) / 2;
+            border-radius: 8px;
+            border-color: #c9d2df;
+            border-width: 1px;
+            background: white;
+
+            VerticalLayout {
+                padding: 18px;
+                spacing: 14px;
+
+                Text {
+                    text: "Add Preset";
+                    font-size: 22px;
+                    font-weight: 700;
+                    color: #20242a;
+                }
+
+                GridLayout {
+                    spacing: 10px;
+                    Text { text: "Name"; color: #657080; }
+                    LineEdit { text <=> root.draft-name; }
+                    Text { text: "Host"; color: #657080; }
+                    LineEdit { text <=> root.draft-host; }
+                    Text { text: "Local Port"; color: #657080; }
+                    LineEdit { text <=> root.draft-local-port; input-type: number; }
+                    Text { text: "Remote Host"; color: #657080; }
+                    LineEdit { text <=> root.draft-remote-host; }
+                    Text { text: "Remote Port"; color: #657080; }
+                    LineEdit { text <=> root.draft-remote-port; input-type: number; }
+                }
+
+                Rectangle {
+                    height: 42px;
+                    background: #f3f5f8;
+                    border-radius: 6px;
+                    Text {
+                        text: root.status-message;
+                        color: #475467;
+                        wrap: word-wrap;
+                        vertical-alignment: center;
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 8px;
+                    Button {
+                        text: "Cancel";
+                        clicked => { root.add-dialog-open = false; }
+                    }
+                    Button {
+                        text: "Add";
+                        clicked => { root.add-preset-requested(); }
+                    }
+                }
             }
         }
     }
