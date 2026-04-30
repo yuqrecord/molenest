@@ -3,12 +3,9 @@ use directories::UserDirs;
 use std::env;
 use std::path::PathBuf;
 
+/// Returns the platform-appropriate `molenest` config file path.
 pub fn config_file() -> Result<PathBuf> {
     Ok(config_dir()?.join("molenest").join("config.toml"))
-}
-
-pub fn sessions_dir() -> Result<PathBuf> {
-    Ok(data_dir()?.join("molenest").join("sessions"))
 }
 
 fn config_dir() -> Result<PathBuf> {
@@ -16,13 +13,6 @@ fn config_dir() -> Result<PathBuf> {
         return Ok(PathBuf::from(value));
     }
     Ok(home_dir()?.join(".config"))
-}
-
-fn data_dir() -> Result<PathBuf> {
-    if let Some(value) = non_empty_env("XDG_DATA_HOME") {
-        return Ok(PathBuf::from(value));
-    }
-    Ok(home_dir()?.join(".local").join("share"))
 }
 
 fn home_dir() -> Result<PathBuf> {
@@ -42,6 +32,7 @@ fn non_empty_env(name: &str) -> Option<String> {
     env::var(name).ok().filter(|value| !value.trim().is_empty())
 }
 
+/// Creates the parent directory for `path` when it exists.
 pub fn ensure_parent(path: &std::path::Path) -> Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)

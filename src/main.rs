@@ -1,11 +1,9 @@
 use anyhow::Result;
-use clap::Parser;
-use molenest::cli;
 use tracing_subscriber::{EnvFilter, fmt};
 
 fn main() -> Result<()> {
     init_logging();
-    cli::Cli::parse().run()
+    molenest::app::run()
 }
 
 fn init_logging() {

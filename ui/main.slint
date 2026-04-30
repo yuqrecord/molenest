@@ -1,0 +1,243 @@
+import { Button, ListView, ScrollView } from "std-widgets.slint";
+
+export struct PresetRow {
+    name: string,
+    host: string,
+    local-port: string,
+    remote: string,
+    status: string,
+}
+
+export struct ConnectionDetails {
+    name: string,
+    status: string,
+    local-url: string,
+    command: string,
+    started-at: string,
+    output: string,
+}
+
+export component MainWindow inherits Window {
+    title: "molenest";
+    preferred-width: 1040px;
+    preferred-height: 680px;
+    min-width: 860px;
+    min-height: 560px;
+    background: #f7f8fa;
+
+    in property <[PresetRow]> presets;
+    in-out property <int> selected-index: -1;
+    in property <ConnectionDetails> details;
+    in property <string> status-message;
+    in property <string> config-path;
+
+    callback selected(int);
+    callback start-requested();
+    callback stop-requested();
+    callback reload-requested();
+    callback edit-config-requested();
+    callback doctor-requested();
+
+    VerticalLayout {
+        padding: 18px;
+        spacing: 14px;
+
+        HorizontalLayout {
+            alignment: space-between;
+
+            VerticalLayout {
+                spacing: 2px;
+                Text {
+                    text: "molenest";
+                    font-size: 26px;
+                    font-weight: 700;
+                    color: #20242a;
+                }
+                Text {
+                    text: root.config-path;
+                    font-size: 12px;
+                    color: #657080;
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 8px;
+                Button {
+                    text: "Doctor";
+                    clicked => { root.doctor-requested(); }
+                }
+                Button {
+                    text: "Edit Config";
+                    clicked => { root.edit-config-requested(); }
+                }
+                Button {
+                    text: "Reload";
+                    clicked => { root.reload-requested(); }
+                }
+            }
+        }
+
+        HorizontalLayout {
+            spacing: 16px;
+
+            Rectangle {
+                border-color: #d6dce5;
+                border-width: 1px;
+                border-radius: 8px;
+                background: white;
+                min-width: 600px;
+
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 8px;
+
+                    HorizontalLayout {
+                        padding-left: 8px;
+                        padding-right: 8px;
+                        spacing: 10px;
+                        Text { text: "Preset"; width: 170px; font-weight: 700; color: #596273; }
+                        Text { text: "Host"; width: 150px; font-weight: 700; color: #596273; }
+                        Text { text: "Local"; width: 70px; font-weight: 700; color: #596273; horizontal-alignment: right; }
+                        Text { text: "Remote"; width: 165px; font-weight: 700; color: #596273; }
+                        Text { text: "Status"; width: 90px; font-weight: 700; color: #596273; }
+                    }
+
+                    Rectangle { height: 1px; background: #e6eaf0; }
+
+                    if root.presets.length == 0 : Rectangle {
+                        height: 420px;
+                        Text {
+                            text: "No presets found. Edit the config file, then reload.";
+                            color: #657080;
+                            vertical-alignment: center;
+                            horizontal-alignment: center;
+                        }
+                    }
+
+                    ListView {
+                        for row[index] in root.presets : Rectangle {
+                            height: 44px;
+                            border-radius: 6px;
+                            background: root.selected-index == index ? #e7f0ff : white;
+
+                            TouchArea {
+                                clicked => {
+                                    root.selected-index = index;
+                                    root.selected(index);
+                                }
+                            }
+
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 8px;
+                                spacing: 10px;
+                                alignment: center;
+
+                                Text { text: row.name; width: 170px; color: #1f2933; overflow: elide; }
+                                Text { text: row.host; width: 150px; color: #334155; overflow: elide; }
+                                Text { text: row.local-port; width: 70px; color: #334155; horizontal-alignment: right; }
+                                Text { text: row.remote; width: 165px; color: #334155; overflow: elide; }
+                                Text { text: row.status; width: 90px; color: row.status == "running" ? #067647 : row.status == "failed" ? #b42318 : #526070; }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                border-color: #d6dce5;
+                border-width: 1px;
+                border-radius: 8px;
+                background: white;
+                min-width: 340px;
+
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 12px;
+
+                    Text {
+                        text: root.details.name == "" ? "Connection" : root.details.name;
+                        font-size: 20px;
+                        font-weight: 700;
+                        color: #20242a;
+                    }
+
+                    GridLayout {
+                        spacing: 8px;
+                        Text { text: "Status"; color: #657080; }
+                        Text { text: root.details.status; color: #20242a; }
+                        Text { text: "Local URL"; color: #657080; }
+                        Text { text: root.details.local-url; color: #20242a; overflow: elide; }
+                        Text { text: "Started"; color: #657080; }
+                        Text { text: root.details.started-at; color: #20242a; overflow: elide; }
+                    }
+
+                    HorizontalLayout {
+                        spacing: 8px;
+                        Button {
+                            text: "Start";
+                            enabled: root.selected-index >= 0;
+                            clicked => { root.start-requested(); }
+                        }
+                        Button {
+                            text: "Stop";
+                            enabled: root.selected-index >= 0;
+                            clicked => { root.stop-requested(); }
+                        }
+                    }
+
+                    Text {
+                        text: "Command";
+                        font-weight: 700;
+                        color: #596273;
+                    }
+                    Rectangle {
+                        background: #f3f5f8;
+                        border-radius: 6px;
+                        height: 58px;
+                        Text {
+                            text: root.details.command;
+                            color: #29313d;
+                            font-family: "monospace";
+                            font-size: 12px;
+                            wrap: word-wrap;
+                        }
+                    }
+
+                    Text {
+                        text: "Recent Output";
+                        font-weight: 700;
+                        color: #596273;
+                    }
+                    Rectangle {
+                        background: #101820;
+                        border-radius: 6px;
+                        min-height: 220px;
+
+                        ScrollView {
+                            Text {
+                                text: root.details.output;
+                                color: #d9e2ec;
+                                font-family: "monospace";
+                                font-size: 12px;
+                                wrap: word-wrap;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            height: 34px;
+            border-radius: 6px;
+            background: #eef2f7;
+            Text {
+                text: root.status-message;
+                color: #475467;
+                vertical-alignment: center;
+                horizontal-alignment: left;
+            }
+        }
+    }
+}

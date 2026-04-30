@@ -1,16 +1,24 @@
 use crate::config::ForwardPreset;
-use crate::platform;
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use std::net::TcpListener;
-use std::process::{Child, Command, Stdio};
 
+/// A shell-free SSH command description.
+///
+/// `program` and `args` are stored separately so callers can pass them directly
+/// to `std::process::Command` without constructing a shell string.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SshCommandSpec {
+    /// The SSH executable path or command name.
     pub program: String,
+    /// Arguments passed to the SSH executable.
     pub args: Vec<String>,
 }
 
 impl SshCommandSpec {
+    /// Returns a display-only command summary.
+    ///
+    /// This string is intended for UI display and diagnostics. It must not be
+    /// executed through a shell.
     pub fn summary(&self) -> String {
         let mut parts = Vec::with_capacity(self.args.len() + 1);
         parts.push(self.program.clone());
@@ -19,6 +27,10 @@ impl SshCommandSpec {
     }
 }
 
+/// Builds the `ssh -N -L ...` command for a forwarding preset.
+///
+/// The preset's `host` is preserved as the final SSH destination so OpenSSH can
+/// resolve `~/.ssh/config` normally.
 pub fn build_ssh_command(ssh_binary: &str, preset: &ForwardPreset) -> SshCommandSpec {
     let forward = match preset.bind_address.as_deref() {
         Some(bind_address) => format!(
@@ -41,6 +53,7 @@ pub fn build_ssh_command(ssh_binary: &str, preset: &ForwardPreset) -> SshCommand
     }
 }
 
+/// Verifies that the configured SSH executable can be found.
 pub fn ensure_ssh_available(ssh_binary: &str) -> Result<()> {
     which::which(ssh_binary).with_context(|| {
         format!(
@@ -51,28 +64,15 @@ pub fn ensure_ssh_available(ssh_binary: &str) -> Result<()> {
     Ok(())
 }
 
+/// Checks whether the configured local forwarding port appears available.
+///
+/// This is a best-effort preflight check. The later `ssh` process may still fail
+/// if another process binds the port between this check and process startup.
 pub fn ensure_local_port_available(bind_address: Option<&str>, port: u16) -> Result<()> {
     let address = bind_address.unwrap_or("127.0.0.1");
     TcpListener::bind((address, port))
         .with_context(|| format!("Local port {} appears unavailable on {}", port, address))?;
     Ok(())
-}
-
-pub fn spawn_background(spec: &SshCommandSpec) -> Result<Child> {
-    if spec.program.trim().is_empty() {
-        bail!("SSH binary path is empty");
-    }
-
-    let mut command = Command::new(&spec.program);
-    command
-        .args(&spec.args)
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    platform::prepare_background_command(&mut command);
-    command
-        .spawn()
-        .with_context(|| format!("Failed to start SSH command: {}", spec.summary()))
 }
 
 #[cfg(test)]
