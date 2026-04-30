@@ -89,8 +89,9 @@ Default path:
 - Windows: `%XDG_CONFIG_HOME%\\molenest\\config.toml` or `%USERPROFILE%\\.config\\molenest\\config.toml`
 
 If the config file does not exist, the app creates a default empty config on
-startup. Use **Edit Config** in the app to open it in a platform editor, then use
-**Reload** after saving changes.
+startup. Fill in **Name**, **Host**, **Local Port**, **Remote Host**, and
+**Remote Port**, then press **Add Preset** to append a preset to the config
+file. Use **Reload** after editing the TOML file outside the app.
 
 Example:
 
@@ -121,11 +122,12 @@ For example, if your SSH config contains `Host my-server`, `molenest` passes
 ## Main Workflow
 
 1. Open `molenest`.
-2. Select a forwarding preset.
-3. Press **Start**.
-4. Watch the status and recent SSH output in the detail panel.
-5. Use the local URL shown by the app.
-6. Press **Stop** or close the app to end the SSH process.
+2. Add a preset with the form if the list is empty.
+3. Select a forwarding preset.
+4. Press **Start**.
+5. Watch the status and recent SSH output in the detail panel.
+6. Use the local URL shown by the app.
+7. Press **Stop** or close the app to end the SSH process.
 
 The MVP intentionally manages connections only while the GUI app is running.
 There is no daemon or detached session store yet.

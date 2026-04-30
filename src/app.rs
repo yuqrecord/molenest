@@ -12,7 +12,6 @@ use slint::{ComponentHandle, ModelRc, SharedString, Timer, TimerMode, VecModel};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Duration;
@@ -82,12 +81,23 @@ fn connect_callbacks(
     });
 
     let window_weak = window.as_weak();
-    let edit_state = Rc::clone(&state);
-    window.on_edit_config_requested(move || {
-        let result = edit_state.borrow_mut().edit_config();
-        handle_callback_result(result, &edit_state);
+    let add_state = Rc::clone(&state);
+    window.on_add_preset_requested(move || {
         if let Some(window) = window_weak.upgrade() {
-            sync_window(&window, &edit_state.borrow());
+            let draft = PresetDraft {
+                name: window.get_draft_name().to_string(),
+                host: window.get_draft_host().to_string(),
+                local_port: window.get_draft_local_port().to_string(),
+                remote_host: window.get_draft_remote_host().to_string(),
+                remote_port: window.get_draft_remote_port().to_string(),
+            };
+            let result = add_state.borrow_mut().add_preset(draft);
+            let added = result.is_ok();
+            handle_callback_result(result, &add_state);
+            if added {
+                clear_draft_fields(&window);
+            }
+            sync_window(&window, &add_state.borrow());
         }
     });
 
@@ -229,12 +239,16 @@ impl AppState {
         Ok(())
     }
 
-    fn edit_config(&mut self) -> Result<()> {
-        if !self.config_path.exists() {
-            Config::default().save(&self.config_path)?;
+    fn add_preset(&mut self, draft: PresetDraft) -> Result<()> {
+        let preset = draft.into_preset()?;
+        if self.config.find_preset(&preset.name).is_some() {
+            return Err(anyhow!("Preset already exists: {}", preset.name));
         }
-        open_config_editor(&self.config_path)?;
-        self.status_message = format!("Opened config: {}", self.config_path.display());
+
+        self.config.forwards.push(preset.clone());
+        self.config.save(&self.config_path)?;
+        self.selected_index = (self.config.forwards.len() - 1) as i32;
+        self.status_message = format!("Added preset {}.", preset.name);
         Ok(())
     }
 
@@ -460,32 +474,86 @@ fn load_or_create_config(path: &Path) -> Result<(Config, String)> {
     ))
 }
 
-fn open_config_editor(path: &Path) -> Result<()> {
-    paths::ensure_parent(path)?;
-    let (program, args) = editor_command(path);
-    Command::new(&program)
-        .args(args)
-        .spawn()
-        .with_context(|| format!("Failed to open config editor `{program}`"))?;
-    Ok(())
+#[derive(Debug)]
+struct PresetDraft {
+    name: String,
+    host: String,
+    local_port: String,
+    remote_host: String,
+    remote_port: String,
 }
 
-fn editor_command(path: &Path) -> (String, Vec<String>) {
-    if let Ok(editor) = std::env::var("EDITOR").or_else(|_| std::env::var("VISUAL"))
-        && !editor.trim().is_empty()
-        && !editor.contains(char::is_whitespace)
-    {
-        return (editor, vec![path.display().to_string()]);
+impl PresetDraft {
+    fn into_preset(self) -> Result<ForwardPreset> {
+        let preset = ForwardPreset {
+            name: self.name.trim().to_string(),
+            host: self.host.trim().to_string(),
+            local_port: parse_port("local_port", &self.local_port)?,
+            remote_host: self.remote_host.trim().to_string(),
+            remote_port: parse_port("remote_port", &self.remote_port)?,
+            bind_address: None,
+            extra_args: vec![],
+        };
+        preset.validate()?;
+        Ok(preset)
+    }
+}
+
+fn parse_port(field: &str, value: &str) -> Result<u16> {
+    value
+        .trim()
+        .parse::<u16>()
+        .with_context(|| format!("{field} must be a port in the range 1..=65535"))
+        .and_then(|port| {
+            if port == 0 {
+                Err(anyhow!("{field} must be a port in the range 1..=65535"))
+            } else {
+                Ok(port)
+            }
+        })
+}
+
+fn clear_draft_fields(window: &MainWindow) {
+    window.set_draft_name(SharedString::from(""));
+    window.set_draft_host(SharedString::from(""));
+    window.set_draft_local_port(SharedString::from(""));
+    window.set_draft_remote_host(SharedString::from("127.0.0.1"));
+    window.set_draft_remote_port(SharedString::from(""));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn draft_builds_valid_preset() {
+        let preset = PresetDraft {
+            name: "jupyter".to_string(),
+            host: "my-server".to_string(),
+            local_port: "8888".to_string(),
+            remote_host: "127.0.0.1".to_string(),
+            remote_port: "8888".to_string(),
+        }
+        .into_preset()
+        .unwrap();
+
+        assert_eq!(preset.name, "jupyter");
+        assert_eq!(preset.host, "my-server");
+        assert_eq!(preset.local_port, 8888);
+        assert_eq!(preset.remote_port, 8888);
     }
 
-    if cfg!(windows) {
-        ("notepad".to_string(), vec![path.display().to_string()])
-    } else if cfg!(target_os = "macos") {
-        (
-            "open".to_string(),
-            vec!["-t".to_string(), path.display().to_string()],
-        )
-    } else {
-        ("xdg-open".to_string(), vec![path.display().to_string()])
+    #[test]
+    fn draft_rejects_invalid_port() {
+        let result = PresetDraft {
+            name: "bad".to_string(),
+            host: "server".to_string(),
+            local_port: "0".to_string(),
+            remote_host: "127.0.0.1".to_string(),
+            remote_port: "8888".to_string(),
+        }
+        .into_preset();
+
+        assert!(result.is_err());
     }
 }

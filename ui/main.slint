@@ -1,4 +1,4 @@
-import { Button, ListView, ScrollView } from "std-widgets.slint";
+import { Button, LineEdit, ListView, ScrollView } from "std-widgets.slint";
 
 export struct PresetRow {
     name: string,
@@ -30,12 +30,17 @@ export component MainWindow inherits Window {
     in property <ConnectionDetails> details;
     in property <string> status-message;
     in property <string> config-path;
+    in-out property <string> draft-name;
+    in-out property <string> draft-host;
+    in-out property <string> draft-local-port;
+    in-out property <string> draft-remote-host: "127.0.0.1";
+    in-out property <string> draft-remote-port;
 
     callback selected(int);
     callback start-requested();
     callback stop-requested();
     callback reload-requested();
-    callback edit-config-requested();
+    callback add-preset-requested();
     callback doctor-requested();
 
     VerticalLayout {
@@ -65,10 +70,6 @@ export component MainWindow inherits Window {
                 Button {
                     text: "Doctor";
                     clicked => { root.doctor-requested(); }
-                }
-                Button {
-                    text: "Edit Config";
-                    clicked => { root.edit-config-requested(); }
                 }
                 Button {
                     text: "Reload";
@@ -107,7 +108,7 @@ export component MainWindow inherits Window {
                     if root.presets.length == 0 : Rectangle {
                         height: 420px;
                         Text {
-                            text: "No presets found. Edit the config file, then reload.";
+                            text: "No presets found. Add one with the form on the right.";
                             color: #657080;
                             vertical-alignment: center;
                             horizontal-alignment: center;
@@ -153,7 +154,35 @@ export component MainWindow inherits Window {
 
                 VerticalLayout {
                     padding: 14px;
-                    spacing: 12px;
+                    spacing: 10px;
+
+                    Text {
+                        text: "Add Preset";
+                        font-size: 18px;
+                        font-weight: 700;
+                        color: #20242a;
+                    }
+
+                    GridLayout {
+                        spacing: 7px;
+                        Text { text: "Name"; color: #657080; }
+                        LineEdit { text <=> root.draft-name; }
+                        Text { text: "Host"; color: #657080; }
+                        LineEdit { text <=> root.draft-host; }
+                        Text { text: "Local Port"; color: #657080; }
+                        LineEdit { text <=> root.draft-local-port; input-type: number; }
+                        Text { text: "Remote Host"; color: #657080; }
+                        LineEdit { text <=> root.draft-remote-host; }
+                        Text { text: "Remote Port"; color: #657080; }
+                        LineEdit { text <=> root.draft-remote-port; input-type: number; }
+                    }
+
+                    Button {
+                        text: "Add Preset";
+                        clicked => { root.add-preset-requested(); }
+                    }
+
+                    Rectangle { height: 1px; background: #e6eaf0; }
 
                     Text {
                         text: root.details.name == "" ? "Connection" : root.details.name;
