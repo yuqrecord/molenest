@@ -17,11 +17,199 @@ export struct ConnectionDetails {
     output: string,
 }
 
+component PresetListPanel inherits Rectangle {
+    in property <[PresetRow]> presets;
+    in-out property <int> selected-index: -1;
+    callback selected(int);
+
+    border-color: #d6dce5;
+    border-width: 1px;
+    border-radius: 8px;
+    background: white;
+    horizontal-stretch: 3;
+    vertical-stretch: 1;
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 10px;
+
+        Text {
+            text: "Presets";
+            font-size: 18px;
+            font-weight: 700;
+            color: #20242a;
+        }
+
+        if root.presets.length == 0 : Rectangle {
+            min-height: 260px;
+            vertical-stretch: 1;
+            Text {
+                text: "No presets found. Use Add Preset to create one.";
+                color: #657080;
+                vertical-alignment: center;
+                horizontal-alignment: center;
+                wrap: word-wrap;
+            }
+        }
+
+        ListView {
+            for row[index] in root.presets : Rectangle {
+                height: 68px;
+                border-radius: 6px;
+                background: root.selected-index == index ? #e7f0ff : white;
+
+                TouchArea {
+                    clicked => {
+                        root.selected-index = index;
+                        root.selected(index);
+                    }
+                }
+
+                HorizontalLayout {
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    spacing: 10px;
+                    alignment: center;
+
+                    VerticalLayout {
+                        horizontal-stretch: 1;
+                        spacing: 3px;
+
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text {
+                                text: row.name;
+                                color: #1f2933;
+                                font-weight: 700;
+                                overflow: elide;
+                                horizontal-stretch: 1;
+                            }
+                            Text {
+                                text: row.local-port;
+                                color: #526070;
+                                horizontal-alignment: right;
+                                horizontal-stretch: 0;
+                            }
+                        }
+
+                        Text {
+                            text: row.host + "  ->  " + row.remote;
+                            color: #526070;
+                            font-size: 12px;
+                            overflow: elide;
+                        }
+                    }
+
+                    Text {
+                        text: row.status;
+                        width: 86px;
+                        horizontal-stretch: 0;
+                        horizontal-alignment: right;
+                        color: row.status == "running" ? #067647 : row.status == "failed" ? #b42318 : #526070;
+                    }
+                }
+            }
+        }
+    }
+}
+
+component DetailsPanel inherits Rectangle {
+    in property <ConnectionDetails> details;
+    in property <int> selected-index: -1;
+    callback start-requested();
+    callback stop-requested();
+
+    border-color: #d6dce5;
+    border-width: 1px;
+    border-radius: 8px;
+    background: white;
+    min-width: 300px;
+    horizontal-stretch: 2;
+    vertical-stretch: 1;
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 12px;
+
+        Text {
+            text: root.details.name == "" ? "Connection" : root.details.name;
+            font-size: 20px;
+            font-weight: 700;
+            color: #20242a;
+            overflow: elide;
+        }
+
+        GridLayout {
+            spacing: 8px;
+            Text { text: "Status"; color: #657080; }
+            Text { text: root.details.status; color: #20242a; overflow: elide; }
+            Text { text: "Local URL"; color: #657080; }
+            Text { text: root.details.local-url; color: #20242a; overflow: elide; }
+            Text { text: "Started"; color: #657080; }
+            Text { text: root.details.started-at; color: #20242a; overflow: elide; }
+        }
+
+        HorizontalLayout {
+            spacing: 8px;
+            Button {
+                text: "Start";
+                enabled: root.selected-index >= 0;
+                clicked => { root.start-requested(); }
+            }
+            Button {
+                text: "Stop";
+                enabled: root.selected-index >= 0;
+                clicked => { root.stop-requested(); }
+            }
+        }
+
+        Text {
+            text: "Command";
+            font-weight: 700;
+            color: #596273;
+        }
+        Rectangle {
+            background: #f3f5f8;
+            border-radius: 6px;
+            height: 58px;
+            Text {
+                text: root.details.command;
+                color: #29313d;
+                font-family: "monospace";
+                font-size: 12px;
+                wrap: word-wrap;
+            }
+        }
+
+        Text {
+            text: "Recent Output";
+            font-weight: 700;
+            color: #596273;
+        }
+        Rectangle {
+            background: #101820;
+            border-radius: 6px;
+            min-height: 220px;
+            vertical-stretch: 1;
+
+            ScrollView {
+                Text {
+                    text: root.details.output;
+                    color: #d9e2ec;
+                    font-family: "monospace";
+                    font-size: 12px;
+                    wrap: word-wrap;
+                }
+            }
+        }
+    }
+}
+
 export component MainWindow inherits Window {
     title: "molenest";
-    preferred-width: 1040px;
-    preferred-height: 680px;
-    min-width: 860px;
+    preferred-width: 1080px;
+    preferred-height: 700px;
+    min-width: 760px;
     min-height: 560px;
     background: #f7f8fa;
 
@@ -50,9 +238,11 @@ export component MainWindow inherits Window {
 
         HorizontalLayout {
             alignment: space-between;
+            spacing: 12px;
 
             VerticalLayout {
                 spacing: 2px;
+                horizontal-stretch: 1;
                 Text {
                     text: "molenest";
                     font-size: 26px;
@@ -63,11 +253,13 @@ export component MainWindow inherits Window {
                     text: root.config-path;
                     font-size: 12px;
                     color: #657080;
+                    overflow: elide;
                 }
             }
 
             HorizontalLayout {
                 spacing: 8px;
+                horizontal-stretch: 0;
                 Button {
                     text: "Add Preset";
                     clicked => { root.add-dialog-open = true; }
@@ -85,152 +277,19 @@ export component MainWindow inherits Window {
 
         HorizontalLayout {
             spacing: 16px;
+            vertical-stretch: 1;
 
-            Rectangle {
-                border-color: #d6dce5;
-                border-width: 1px;
-                border-radius: 8px;
-                background: white;
-                min-width: 600px;
-
-                VerticalLayout {
-                    padding: 12px;
-                    spacing: 8px;
-
-                    HorizontalLayout {
-                        padding-left: 8px;
-                        padding-right: 8px;
-                        spacing: 10px;
-                        Text { text: "Preset"; width: 170px; font-weight: 700; color: #596273; }
-                        Text { text: "Host"; width: 150px; font-weight: 700; color: #596273; }
-                        Text { text: "Local"; width: 70px; font-weight: 700; color: #596273; horizontal-alignment: right; }
-                        Text { text: "Remote"; width: 165px; font-weight: 700; color: #596273; }
-                        Text { text: "Status"; width: 90px; font-weight: 700; color: #596273; }
-                    }
-
-                    Rectangle { height: 1px; background: #e6eaf0; }
-
-                    if root.presets.length == 0 : Rectangle {
-                        height: 420px;
-                        Text {
-                            text: "No presets found. Use Add Preset to create one.";
-                            color: #657080;
-                            vertical-alignment: center;
-                            horizontal-alignment: center;
-                        }
-                    }
-
-                    ListView {
-                        for row[index] in root.presets : Rectangle {
-                            height: 44px;
-                            border-radius: 6px;
-                            background: root.selected-index == index ? #e7f0ff : white;
-
-                            TouchArea {
-                                clicked => {
-                                    root.selected-index = index;
-                                    root.selected(index);
-                                }
-                            }
-
-                            HorizontalLayout {
-                                padding-left: 8px;
-                                padding-right: 8px;
-                                spacing: 10px;
-                                alignment: center;
-
-                                Text { text: row.name; width: 170px; color: #1f2933; overflow: elide; }
-                                Text { text: row.host; width: 150px; color: #334155; overflow: elide; }
-                                Text { text: row.local-port; width: 70px; color: #334155; horizontal-alignment: right; }
-                                Text { text: row.remote; width: 165px; color: #334155; overflow: elide; }
-                                Text { text: row.status; width: 90px; color: row.status == "running" ? #067647 : row.status == "failed" ? #b42318 : #526070; }
-                            }
-                        }
-                    }
-                }
+            PresetListPanel {
+                presets: root.presets;
+                selected-index <=> root.selected-index;
+                selected(index) => { root.selected(index); }
             }
 
-            Rectangle {
-                border-color: #d6dce5;
-                border-width: 1px;
-                border-radius: 8px;
-                background: white;
-                min-width: 340px;
-
-                VerticalLayout {
-                    padding: 14px;
-                    spacing: 12px;
-
-                    Text {
-                        text: root.details.name == "" ? "Connection" : root.details.name;
-                        font-size: 20px;
-                        font-weight: 700;
-                        color: #20242a;
-                    }
-
-                    GridLayout {
-                        spacing: 8px;
-                        Text { text: "Status"; color: #657080; }
-                        Text { text: root.details.status; color: #20242a; }
-                        Text { text: "Local URL"; color: #657080; }
-                        Text { text: root.details.local-url; color: #20242a; overflow: elide; }
-                        Text { text: "Started"; color: #657080; }
-                        Text { text: root.details.started-at; color: #20242a; overflow: elide; }
-                    }
-
-                    HorizontalLayout {
-                        spacing: 8px;
-                        Button {
-                            text: "Start";
-                            enabled: root.selected-index >= 0;
-                            clicked => { root.start-requested(); }
-                        }
-                        Button {
-                            text: "Stop";
-                            enabled: root.selected-index >= 0;
-                            clicked => { root.stop-requested(); }
-                        }
-                    }
-
-                    Text {
-                        text: "Command";
-                        font-weight: 700;
-                        color: #596273;
-                    }
-                    Rectangle {
-                        background: #f3f5f8;
-                        border-radius: 6px;
-                        height: 58px;
-                        Text {
-                            text: root.details.command;
-                            color: #29313d;
-                            font-family: "monospace";
-                            font-size: 12px;
-                            wrap: word-wrap;
-                        }
-                    }
-
-                    Text {
-                        text: "Recent Output";
-                        font-weight: 700;
-                        color: #596273;
-                    }
-                    Rectangle {
-                        background: #101820;
-                        border-radius: 6px;
-                        min-height: 220px;
-
-                        ScrollView {
-                            Text {
-                                text: root.details.output;
-                                color: #d9e2ec;
-                                font-family: "monospace";
-                                font-size: 12px;
-                                wrap: word-wrap;
-                            }
-                        }
-                    }
-                }
+            DetailsPanel {
+                details: root.details;
+                selected-index: root.selected-index;
+                start-requested => { root.start-requested(); }
+                stop-requested => { root.stop-requested(); }
             }
         }
 
@@ -243,6 +302,7 @@ export component MainWindow inherits Window {
                 color: #475467;
                 vertical-alignment: center;
                 horizontal-alignment: left;
+                overflow: elide;
             }
         }
     }
@@ -257,8 +317,8 @@ export component MainWindow inherits Window {
         TouchArea {}
 
         Rectangle {
-            width: 520px;
-            height: 430px;
+            width: root.width < 560px ? root.width - 36px : 520px;
+            height: root.height < 620px ? root.height - 48px : 560px;
             x: (root.width - self.width) / 2;
             y: (root.height - self.height) / 2;
             border-radius: 8px;
@@ -268,7 +328,7 @@ export component MainWindow inherits Window {
 
             VerticalLayout {
                 padding: 18px;
-                spacing: 14px;
+                spacing: 10px;
 
                 Text {
                     text: "Add Preset";
@@ -277,19 +337,20 @@ export component MainWindow inherits Window {
                     color: #20242a;
                 }
 
-                GridLayout {
-                    spacing: 10px;
-                    Text { text: "Name"; color: #657080; }
-                    LineEdit { text <=> root.draft-name; }
-                    Text { text: "Host"; color: #657080; }
-                    LineEdit { text <=> root.draft-host; }
-                    Text { text: "Local Port"; color: #657080; }
-                    LineEdit { text <=> root.draft-local-port; input-type: number; }
-                    Text { text: "Remote Host"; color: #657080; }
-                    LineEdit { text <=> root.draft-remote-host; }
-                    Text { text: "Remote Port"; color: #657080; }
-                    LineEdit { text <=> root.draft-remote-port; input-type: number; }
-                }
+                Text { text: "Name"; color: #657080; }
+                LineEdit { text <=> root.draft-name; }
+
+                Text { text: "Host"; color: #657080; }
+                LineEdit { text <=> root.draft-host; }
+
+                Text { text: "Local Port"; color: #657080; }
+                LineEdit { text <=> root.draft-local-port; input-type: number; }
+
+                Text { text: "Remote Host"; color: #657080; }
+                LineEdit { text <=> root.draft-remote-host; }
+
+                Text { text: "Remote Port"; color: #657080; }
+                LineEdit { text <=> root.draft-remote-port; input-type: number; }
 
                 Rectangle {
                     height: 42px;
