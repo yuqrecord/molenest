@@ -319,7 +319,11 @@ Run before committing:
 cargo fmt
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-features
+cargo doc --no-deps --all-features
 ```
+
+Generate only `molenest` documentation. Do not run bare `cargo doc` for project
+verification because Cargo's default behavior also documents dependency crates.
 
 When UI changes are substantial, run the app locally and visually inspect the main states on at least one desktop platform.
 

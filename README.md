@@ -159,6 +159,9 @@ cargo test --all-features
 cargo doc --no-deps --all-features
 ```
 
+Use `--no-deps` for documentation checks. Bare `cargo doc` also generates local
+documentation for dependency crates, which is unnecessary for this project.
+
 Open the generated API docs locally:
 
 ```text
