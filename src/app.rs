@@ -16,7 +16,7 @@ use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::Duration;
 use time::OffsetDateTime;
-use time::format_description::well_known::Rfc3339;
+use time::macros::format_description;
 
 slint::include_modules!();
 
@@ -41,19 +41,12 @@ fn connect_callbacks(
     event_tx: Sender<ProcessEvent>,
 ) {
     let window_weak = window.as_weak();
-    let select_state = Rc::clone(&state);
-    window.on_selected(move |index| {
-        select_state.borrow_mut().select(index);
-        if let Some(window) = window_weak.upgrade() {
-            sync_window(&window, &select_state.borrow());
-        }
-    });
-
-    let window_weak = window.as_weak();
     let start_state = Rc::clone(&state);
     let start_tx = event_tx.clone();
-    window.on_start_requested(move || {
-        let result = start_state.borrow_mut().start_selected(start_tx.clone());
+    window.on_start_requested(move |index| {
+        let result = start_state
+            .borrow_mut()
+            .start_preset(index, start_tx.clone());
         handle_callback_result(result, &start_state);
         if let Some(window) = window_weak.upgrade() {
             sync_window(&window, &start_state.borrow());
@@ -62,8 +55,8 @@ fn connect_callbacks(
 
     let window_weak = window.as_weak();
     let stop_state = Rc::clone(&state);
-    window.on_stop_requested(move || {
-        let result = stop_state.borrow_mut().stop_selected();
+    window.on_stop_requested(move |index| {
+        let result = stop_state.borrow_mut().stop_preset(index);
         handle_callback_result(result, &stop_state);
         if let Some(window) = window_weak.upgrade() {
             sync_window(&window, &stop_state.borrow());
@@ -101,16 +94,6 @@ fn connect_callbacks(
             sync_window(&window, &add_state.borrow());
         }
     });
-
-    let window_weak = window.as_weak();
-    let doctor_state = Rc::clone(&state);
-    window.on_doctor_requested(move || {
-        let result = doctor_state.borrow_mut().doctor();
-        handle_callback_result(result, &doctor_state);
-        if let Some(window) = window_weak.upgrade() {
-            sync_window(&window, &doctor_state.borrow());
-        }
-    });
 }
 
 fn start_event_timer(
@@ -144,7 +127,6 @@ fn handle_callback_result(result: Result<()>, state: &Rc<RefCell<AppState>>) {
 struct AppState {
     config_path: PathBuf,
     config: Config,
-    selected_index: i32,
     status_message: String,
     connections: HashMap<String, ConnectionState>,
     handles: HashMap<String, ManagedProcess>,
@@ -157,57 +139,46 @@ impl AppState {
         Ok(Self {
             config_path,
             config,
-            selected_index: -1,
             status_message,
             connections: HashMap::new(),
             handles: HashMap::new(),
         })
     }
 
-    fn select(&mut self, index: i32) {
-        self.selected_index = index;
-        if let Some(preset) = self.selected_preset() {
-            self.status_message = format!("Selected {}.", preset.name);
-        }
-    }
+    fn start_preset(&mut self, index: i32, event_tx: Sender<ProcessEvent>) -> Result<()> {
+        let preset = self.preset_at(index)?.clone();
 
-    fn start_selected(&mut self, event_tx: Sender<ProcessEvent>) -> Result<()> {
-        let preset = self
-            .selected_preset()
-            .cloned()
-            .ok_or_else(|| anyhow!("Select a preset first."))?;
-
-        let existing = self
-            .connections
-            .entry(preset.name.clone())
-            .or_default()
-            .status;
-        if existing.is_active() {
-            return Err(anyhow!("{} is already {}.", preset.name, existing.as_str()));
+        if self.handles.contains_key(&preset.name) {
+            return Err(anyhow!("{} is already running.", preset.name));
         }
 
-        ssh::ensure_ssh_available(&self.config.defaults.ssh_binary)?;
-        ssh::ensure_local_port_available(preset.bind_address.as_deref(), preset.local_port)?;
+        if let Err(error) = self.preflight_start(&preset) {
+            self.mark_failed(&preset.name);
+            return Err(error);
+        }
 
         let spec = ssh::build_ssh_command(&self.config.defaults.ssh_binary, &preset);
-        let handle = process::spawn_managed(&preset, &spec, event_tx)?;
+        let handle = match process::spawn_managed(&preset, &spec, event_tx) {
+            Ok(handle) => handle,
+            Err(error) => {
+                self.mark_failed(&preset.name);
+                return Err(error);
+            }
+        };
         let pid = handle.pid();
 
         let connection = self.connections.entry(preset.name.clone()).or_default();
-        connection.status = ConnectionStatus::Starting;
+        connection.status = ConnectionStatus::Running;
         connection.pid = Some(pid);
-        connection.started_at = Some(OffsetDateTime::now_utc());
+        connection.status_changed_at = Some(now());
 
         self.handles.insert(preset.name.clone(), handle);
-        self.status_message = format!("Starting {}.", preset.name);
+        self.status_message = format!("{} is running.", preset.name);
         Ok(())
     }
 
-    fn stop_selected(&mut self) -> Result<()> {
-        let preset_name = self
-            .selected_preset()
-            .map(|preset| preset.name.clone())
-            .ok_or_else(|| anyhow!("Select a preset first."))?;
+    fn stop_preset(&mut self, index: i32) -> Result<()> {
+        let preset_name = self.preset_at(index)?.name.clone();
 
         let handle = self
             .handles
@@ -215,8 +186,6 @@ impl AppState {
             .ok_or_else(|| anyhow!("{preset_name} is not running."))?;
         handle.request_stop();
 
-        let connection = self.connections.entry(preset_name.clone()).or_default();
-        connection.status = ConnectionStatus::Stopping;
         self.status_message = format!("Stopping {preset_name}.");
         Ok(())
     }
@@ -224,13 +193,6 @@ impl AppState {
     fn reload_config(&mut self) -> Result<()> {
         let (config, _) = load_or_create_config(&self.config_path)?;
         self.config = config;
-        if self.selected_index as usize >= self.config.forwards.len() {
-            self.selected_index = if self.config.forwards.is_empty() {
-                -1
-            } else {
-                0
-            };
-        }
         self.status_message = "Reloaded config.".to_string();
         Ok(())
     }
@@ -243,33 +205,22 @@ impl AppState {
 
         self.config.forwards.push(preset.clone());
         self.config.save(&self.config_path)?;
-        self.selected_index = (self.config.forwards.len() - 1) as i32;
         self.status_message = format!("Added preset {}.", preset.name);
         Ok(())
     }
 
-    fn doctor(&mut self) -> Result<()> {
+    fn preflight_start(&self, preset: &ForwardPreset) -> Result<()> {
         self.config.validate()?;
         ssh::ensure_ssh_available(&self.config.defaults.ssh_binary)?;
-
-        let mut unavailable = Vec::new();
-        for preset in &self.config.forwards {
-            if let Err(error) =
-                ssh::ensure_local_port_available(preset.bind_address.as_deref(), preset.local_port)
-            {
-                unavailable.push(format!("{}: {error:#}", preset.name));
-            }
-        }
-
-        self.status_message = if unavailable.is_empty() {
-            format!(
-                "Doctor passed. SSH executable `{}` is available.",
-                self.config.defaults.ssh_binary
-            )
-        } else {
-            format!("Doctor found port issues: {}", unavailable.join("; "))
-        };
+        ssh::ensure_local_port_available(preset.bind_address.as_deref(), preset.local_port)?;
         Ok(())
+    }
+
+    fn mark_failed(&mut self, preset_name: &str) {
+        let connection = self.connections.entry(preset_name.to_string()).or_default();
+        connection.status = ConnectionStatus::Failed;
+        connection.pid = None;
+        connection.status_changed_at = Some(now());
     }
 
     fn stop_all(&mut self) {
@@ -285,6 +236,9 @@ impl AppState {
                 let connection = self.connections.entry(preset_name.clone()).or_default();
                 connection.status = ConnectionStatus::Running;
                 connection.pid = Some(pid);
+                if connection.status_changed_at.is_none() {
+                    connection.status_changed_at = Some(now());
+                }
                 self.status_message = format!("{preset_name} is running.");
             }
             ProcessEvent::Output {
@@ -299,31 +253,34 @@ impl AppState {
             ProcessEvent::Exited {
                 preset_name,
                 status,
-                success,
+                success: _,
             } => {
                 self.handles.remove(&preset_name);
                 let connection = self.connections.entry(preset_name.clone()).or_default();
-                connection.status = if success {
-                    ConnectionStatus::Exited
-                } else {
-                    ConnectionStatus::Failed
-                };
+                connection.status = ConnectionStatus::Failed;
+                connection.pid = None;
+                connection.status_changed_at = Some(now());
                 self.status_message = format!("{preset_name} exited with {status}.");
             }
             ProcessEvent::Stopped { preset_name, .. } => {
                 self.handles.remove(&preset_name);
                 let connection = self.connections.entry(preset_name.clone()).or_default();
-                connection.status = ConnectionStatus::Stopped;
+                connection.status = ConnectionStatus::Idle;
+                connection.pid = None;
+                connection.status_changed_at = None;
                 self.status_message = format!("{preset_name} stopped.");
             }
         }
     }
 
-    fn selected_preset(&self) -> Option<&ForwardPreset> {
-        if self.selected_index < 0 {
-            return None;
+    fn preset_at(&self, index: i32) -> Result<&ForwardPreset> {
+        if index < 0 {
+            return Err(anyhow!("Unknown preset index: {index}"));
         }
-        self.config.forwards.get(self.selected_index as usize)
+        self.config
+            .forwards
+            .get(index as usize)
+            .ok_or_else(|| anyhow!("Unknown preset index: {index}"))
     }
 
     fn connection_for(&self, preset_name: &str) -> ConnectionState {
@@ -338,36 +295,24 @@ impl AppState {
 struct ConnectionState {
     status: ConnectionStatus,
     pid: Option<u32>,
-    started_at: Option<OffsetDateTime>,
+    status_changed_at: Option<OffsetDateTime>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 enum ConnectionStatus {
     #[default]
     Idle,
-    Starting,
     Running,
-    Stopping,
-    Stopped,
     Failed,
-    Exited,
 }
 
 impl ConnectionStatus {
     fn as_str(self) -> &'static str {
         match self {
-            Self::Idle => "idle",
-            Self::Starting => "starting",
-            Self::Running => "running",
-            Self::Stopping => "stopping",
-            Self::Stopped => "stopped",
-            Self::Failed => "failed",
-            Self::Exited => "exited",
+            Self::Idle => "Idle",
+            Self::Running => "Running",
+            Self::Failed => "Failed",
         }
-    }
-
-    fn is_active(self) -> bool {
-        matches!(self, Self::Starting | Self::Running | Self::Stopping)
     }
 }
 
@@ -384,47 +329,32 @@ fn sync_window(window: &MainWindow, state: &AppState) {
                 local_port: preset.local_port.to_string().into(),
                 remote: format!("{}:{}", preset.remote_host, preset.remote_port).into(),
                 status: connection.status.as_str().into(),
+                status_time: status_time(connection).into(),
             }
         })
         .collect::<Vec<_>>();
 
     window.set_presets(ModelRc::from(Rc::new(VecModel::from(rows))));
-    window.set_selected_index(state.selected_index);
     window.set_config_path(state.config_path.display().to_string().into());
     window.set_status_message(state.status_message.as_str().into());
-    window.set_details(details_for_state(state));
 }
 
-fn details_for_state(state: &AppState) -> ConnectionDetails {
-    let Some(preset) = state.selected_preset() else {
-        return ConnectionDetails {
-            name: SharedString::from(""),
-            status: SharedString::from("No preset selected"),
-            local_url: SharedString::from(""),
-            started_at: SharedString::from(""),
-        };
-    };
-
-    let connection = state.connection_for(&preset.name);
-    let started_at = connection
-        .started_at
-        .and_then(|value| value.format(&Rfc3339).ok())
-        .unwrap_or_default();
-
-    ConnectionDetails {
-        name: preset.name.as_str().into(),
-        status: status_with_pid(connection.status, connection.pid).into(),
-        local_url: preset.local_url().into(),
-        started_at: started_at.into(),
+fn status_time(connection: ConnectionState) -> String {
+    match connection.status {
+        ConnectionStatus::Running | ConnectionStatus::Failed => connection
+            .status_changed_at
+            .and_then(|value| value.format(DATE_TIME_FORMAT).ok())
+            .unwrap_or_default(),
+        ConnectionStatus::Idle => String::new(),
     }
 }
 
-fn status_with_pid(status: ConnectionStatus, pid: Option<u32>) -> String {
-    match pid {
-        Some(pid) if status.is_active() => format!("{} (pid {pid})", status.as_str()),
-        _ => status.as_str().to_string(),
-    }
+fn now() -> OffsetDateTime {
+    OffsetDateTime::now_local().unwrap_or_else(|_| OffsetDateTime::now_utc())
 }
+
+const DATE_TIME_FORMAT: &[time::format_description::FormatItem<'_>] =
+    format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
 
 fn load_or_create_config(path: &Path) -> Result<(Config, String)> {
     if path.exists() {

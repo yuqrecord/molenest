@@ -151,17 +151,17 @@ The first screen should be the working connection manager, not a landing page.
 Expected UI areas:
 
 - A preset list showing name, SSH host, local port, remote host, remote port, and current status.
-- Start and stop controls for the selected preset.
-- A connection detail area showing local URL, process state, and start time.
+- Start and stop controls on each preset row.
+- Preset row status with exactly three visible states: `Idle`, `Running`, and `Failed`.
+- `Running` and `Failed` statuses should include the timestamp when that state began.
 - A bottom message area for user-facing errors, including recent SSH stderr when useful.
 - An add-preset button that opens a focused form for name, host, local port, remote host, and remote port.
 - A visible configuration path and reload action.
-- A doctor/check action for config validity and SSH availability.
 
 Expected behavior:
 
 - Opening `molenest` launches the Slint desktop app.
-- Starting a preset spawns `ssh` as a child process owned by the running app.
+- Starting a preset first performs lightweight preflight checks for config validity, SSH availability, and that preset row's local port, then spawns `ssh` as a child process owned by the running app.
 - The UI updates when the process starts, exits, fails, or writes useful output.
 - Stopping a connection terminates the corresponding child process.
 - Closing the app stops all managed SSH processes before exit.
@@ -189,7 +189,7 @@ Runtime connection state should include:
 - remote port
 - SSH host
 - start timestamp
-- current status: idle, starting, running, stopping, stopped, failed, exited
+- current visible status: idle, running, failed
 - recent user-facing error message when available
 - exit status when available
 
@@ -335,11 +335,11 @@ When UI changes are substantial, run the app locally and visually inspect the ma
 4. Implement forwarding preset model and validation.
 5. Implement SSH command argument construction.
 6. Render the preset list in the Slint UI.
-7. Implement start/stop process management for a selected preset.
+7. Implement row-level start/stop process management for presets.
 8. Stream process status and recent stderr errors into the UI message area.
 9. Stop all managed processes on application shutdown.
 10. Implement add/edit/remove/reload config flows.
-11. Implement doctor checks for config validity and SSH availability.
+11. Implement start preflight checks for config validity, SSH availability, and local port availability.
 12. Add tests and improve error messages.
 13. Write README usage examples and packaging notes.
 
@@ -364,29 +364,26 @@ Start a connection:
 
 ```text
 Open molenest.
-Select "jupyter-8888".
-Press Start.
+Press Start on "jupyter-8888".
 
-Status changes from idle -> starting -> running.
+Status changes from Idle -> Running and shows the start timestamp.
 Local URL: http://127.0.0.1:8888
 ```
 
 Inspect a failure:
 
 ```text
-Select a failed connection.
 Review the message area for the most recent SSH error.
 Fix the host alias, SSH config, or local port conflict.
-Press Start again.
+Press Start on the row again.
 ```
 
 Stop a connection:
 
 ```text
-Select a running connection.
-Press Stop.
+Press Stop on the running row.
 
-Status changes from running -> stopping -> stopped.
+Status changes from Running -> Idle.
 ```
 
 Exit the app:
@@ -420,7 +417,7 @@ Port binding may fail if:
 - the `host` alias is missing or misconfigured in `.ssh/config`;
 - the remote host cannot be reached.
 
-The doctor action should detect as many of these issues as practical without making destructive changes.
+Start preflight checks should detect as many of these issues as practical without making destructive changes.
 
 ## Packaging notes
 

@@ -124,25 +124,24 @@ For example, if your SSH config contains `Host my-server`, `molenest` passes
 
 1. Open `molenest`.
 2. Add a preset with **Add Preset** if the list is empty.
-3. Select a forwarding preset.
-4. Press **Start**.
-5. Watch the status in the detail panel and errors in the message bar.
-6. Use the local URL shown by the app.
-7. Press **Stop** or close the app to end the SSH process.
+3. Press **Start** on the preset row you want to run.
+4. Watch the row status and errors in the message bar.
+5. Use the forwarded local port shown in the row.
+6. Press **Stop** on the row or close the app to end the SSH process.
 
 The MVP intentionally manages connections only while the GUI app is running.
 There is no daemon or detached session store yet.
 
-## Doctor
+## Start Preflight
 
-Use **Doctor** in the app to check:
+Before starting SSH, `molenest` checks:
 
 - config validity;
 - SSH executable availability;
-- whether each configured local port appears bindable.
+- whether the preset row's local port appears bindable.
 
 The port check is best-effort. A port can still become unavailable between the
-doctor check and starting SSH.
+preflight check and starting SSH.
 
 ## Security Notes
 
