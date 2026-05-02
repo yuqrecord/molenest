@@ -12,37 +12,58 @@ export struct PresetRow {
 component PresetListPanel inherits Rectangle {
     in property <[PresetRow]> presets;
 
+    callback add-preset();
     callback start(int);
     callback stop(int);
 
-    border-color: #20242a;
+    border-color: #d9e1ec;
     border-width: 1px;
-    background: white;
+    border-radius: 8px;
+    background: #ffffff;
     vertical-stretch: 1;
 
     VerticalLayout {
-        padding: 18px;
-        spacing: 16px;
-
-        Text {
-            text: "Presets";
-            font-size: 22px;
-            color: #111111;
-        }
+        padding: 16px;
+        spacing: 12px;
 
         HorizontalLayout {
-            padding-left: 0px;
-            padding-right: 0px;
-            spacing: 16px;
+            spacing: 12px;
             alignment: center;
 
-            Rectangle { width: 82px; }
-            Rectangle { width: 82px; }
-            Text { text: "Name"; color: #111111; font-size: 18px; horizontal-stretch: 2; overflow: elide; }
-            Text { text: "Local"; color: #111111; font-size: 18px; width: 66px; horizontal-stretch: 0; horizontal-alignment: right; }
-            Text { text: "Host"; color: #111111; font-size: 18px; horizontal-stretch: 2; overflow: elide; }
-            Text { text: "Remote"; color: #111111; font-size: 18px; horizontal-stretch: 2; overflow: elide; }
-            Text { text: "Status"; color: #111111; font-size: 18px; width: 180px; horizontal-stretch: 0; }
+            Text {
+                text: "Presets";
+                font-size: 22px;
+                font-weight: 700;
+                color: #182230;
+                horizontal-stretch: 1;
+            }
+
+            Button {
+                text: "Add Preset";
+                width: 118px;
+                clicked => { root.add-preset(); }
+            }
+        }
+
+        Rectangle {
+            height: 38px;
+            border-radius: 6px;
+            background: #f3f6fa;
+
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                spacing: 14px;
+                alignment: center;
+
+                Rectangle { width: 76px; }
+                Rectangle { width: 76px; }
+                Text { text: "Name"; color: #566276; font-size: 13px; font-weight: 700; horizontal-stretch: 2; overflow: elide; }
+                Text { text: "Local"; color: #566276; font-size: 13px; font-weight: 700; width: 70px; horizontal-stretch: 0; horizontal-alignment: left; }
+                Text { text: "Host"; color: #566276; font-size: 13px; font-weight: 700; horizontal-stretch: 2; overflow: elide; }
+                Text { text: "Remote"; color: #566276; font-size: 13px; font-weight: 700; horizontal-stretch: 2; overflow: elide; }
+                Text { text: "Status"; color: #566276; font-size: 13px; font-weight: 700; width: 190px; horizontal-stretch: 0; horizontal-alignment: left; }
+            }
         }
 
         if root.presets.length == 0 : Rectangle {
@@ -59,70 +80,78 @@ component PresetListPanel inherits Rectangle {
 
         ListView {
             for row[index] in root.presets : Rectangle {
-                height: 56px;
-                background: white;
+                height: 58px;
+                border-radius: 6px;
+                background: Math.mod(index, 2) == 0 ? #ffffff : #f9fbfd;
 
                 HorizontalLayout {
-                    spacing: 16px;
+                    padding-left: 10px;
+                    padding-right: 10px;
+                    spacing: 14px;
                     alignment: center;
 
                     Button {
                         text: "Start";
-                        width: 82px;
+                        width: 76px;
                         enabled: row.status != "Running";
                         clicked => { root.start(index); }
                     }
 
                     Button {
                         text: "Stop";
-                        width: 82px;
+                        width: 76px;
                         enabled: row.status == "Running";
                         clicked => { root.stop(index); }
                     }
 
                     Text {
                         text: row.name;
-                        color: #111111;
-                        font-size: 18px;
+                        color: #182230;
+                        font-size: 15px;
+                        font-weight: 700;
                         horizontal-stretch: 2;
+                        horizontal-alignment: left;
                         overflow: elide;
                     }
 
                     Text {
                         text: row.local-port;
-                        color: #111111;
-                        font-size: 18px;
-                        width: 66px;
+                        color: #344054;
+                        font-size: 15px;
+                        width: 70px;
                         horizontal-stretch: 0;
-                        horizontal-alignment: right;
+                        horizontal-alignment: left;
                     }
 
                     Text {
                         text: row.host;
-                        color: #111111;
-                        font-size: 18px;
+                        color: #344054;
+                        font-size: 15px;
                         horizontal-stretch: 2;
+                        horizontal-alignment: left;
                         overflow: elide;
                     }
 
                     Text {
                         text: row.remote;
-                        color: #111111;
-                        font-size: 18px;
+                        color: #344054;
+                        font-size: 15px;
                         horizontal-stretch: 2;
+                        horizontal-alignment: left;
                         overflow: elide;
                     }
 
                     VerticalLayout {
-                        width: 180px;
+                        width: 190px;
                         horizontal-stretch: 0;
                         spacing: 2px;
 
                         Text {
                             text: row.status;
                             color: row.status == "Running" ? #067647 : row.status == "Failed" ? #b42318 : #475467;
-                            font-size: 16px;
+                            font-size: 14px;
                             font-weight: 700;
+                            horizontal-alignment: left;
                             overflow: elide;
                         }
 
@@ -130,6 +159,7 @@ component PresetListPanel inherits Rectangle {
                             text: row.status-time;
                             color: #657080;
                             font-size: 11px;
+                            horizontal-alignment: left;
                             overflow: elide;
                         }
                     }
@@ -145,7 +175,7 @@ export component MainWindow inherits Window {
     preferred-height: 700px;
     min-width: 760px;
     min-height: 520px;
-    background: white;
+    background: #f5f7fb;
 
     in property <[PresetRow]> presets;
     in property <string> status-message;
@@ -169,7 +199,8 @@ export component MainWindow inherits Window {
         Text {
             text: "molenest";
             font-size: 28px;
-            color: #111111;
+            font-weight: 700;
+            color: #182230;
         }
 
         HorizontalLayout {
@@ -184,33 +215,30 @@ export component MainWindow inherits Window {
 
             Text {
                 text: root.config-path;
-                color: #111111;
-                font-size: 18px;
+                color: #566276;
+                font-size: 13px;
                 horizontal-stretch: 1;
                 overflow: elide;
-            }
-
-            Button {
-                text: "Add Preset";
-                width: 118px;
-                clicked => { root.add-dialog-open = true; }
             }
         }
 
         Rectangle {
             height: 44px;
-            border-color: #20242a;
+            border-color: #d9e1ec;
             border-width: 1px;
-            background: white;
+            border-radius: 8px;
+            background: #ffffff;
 
             HorizontalLayout {
                 padding-left: 16px;
                 padding-right: 16px;
+                alignment: center;
 
                 Text {
                     text: root.status-message == "" ? "Message" : root.status-message;
-                    color: #111111;
-                    font-size: 18px;
+                    color: #344054;
+                    font-size: 14px;
+                    horizontal-stretch: 1;
                     vertical-alignment: center;
                     horizontal-alignment: left;
                     overflow: elide;
@@ -220,6 +248,7 @@ export component MainWindow inherits Window {
 
         PresetListPanel {
             presets: root.presets;
+            add-preset => { root.add-dialog-open = true; }
             start(index) => { root.start-requested(index); }
             stop(index) => { root.stop-requested(index); }
         }
