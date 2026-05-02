@@ -8,8 +8,8 @@ JupyterLab, VS Code tunnel, dashboard, or web app ports without retyping long
 `ssh -L` commands.
 
 The app is built with Rust and Slint. It keeps SSH forwarding processes attached
-to the running app, so the window can show status, recent SSH output, local URLs,
-and failures. Closing the app stops the SSH processes it started during that run.
+to the running app, so the window can show status, local URLs, and failure
+messages. Closing the app stops the SSH processes it started during that run.
 
 ## Requirements
 
@@ -126,7 +126,7 @@ For example, if your SSH config contains `Host my-server`, `molenest` passes
 2. Add a preset with **Add Preset** if the list is empty.
 3. Select a forwarding preset.
 4. Press **Start**.
-5. Watch the status and recent SSH output in the detail panel.
+5. Watch the status in the detail panel and errors in the message bar.
 6. Use the local URL shown by the app.
 7. Press **Stop** or close the app to end the SSH process.
 

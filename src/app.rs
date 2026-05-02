@@ -190,7 +190,6 @@ impl AppState {
         ssh::ensure_local_port_available(preset.bind_address.as_deref(), preset.local_port)?;
 
         let spec = ssh::build_ssh_command(&self.config.defaults.ssh_binary, &preset);
-        let command_summary = spec.summary();
         let handle = process::spawn_managed(&preset, &spec, event_tx)?;
         let pid = handle.pid();
 
@@ -198,9 +197,6 @@ impl AppState {
         connection.status = ConnectionStatus::Starting;
         connection.pid = Some(pid);
         connection.started_at = Some(OffsetDateTime::now_utc());
-        connection.command_summary = command_summary;
-        connection.output.clear();
-        connection.push_output("molenest", format!("started ssh process {pid}"));
 
         self.handles.insert(preset.name.clone(), handle);
         self.status_message = format!("Starting {}.", preset.name);
@@ -221,7 +217,6 @@ impl AppState {
 
         let connection = self.connections.entry(preset_name.clone()).or_default();
         connection.status = ConnectionStatus::Stopping;
-        connection.push_output("molenest", "stop requested".to_string());
         self.status_message = format!("Stopping {preset_name}.");
         Ok(())
     }
@@ -290,7 +285,6 @@ impl AppState {
                 let connection = self.connections.entry(preset_name.clone()).or_default();
                 connection.status = ConnectionStatus::Running;
                 connection.pid = Some(pid);
-                connection.push_output("molenest", format!("process {pid} is running"));
                 self.status_message = format!("{preset_name} is running.");
             }
             ProcessEvent::Output {
@@ -298,10 +292,9 @@ impl AppState {
                 stream,
                 line,
             } => {
-                self.connections
-                    .entry(preset_name)
-                    .or_default()
-                    .push_output(stream, line);
+                if stream == "stderr" && !line.trim().is_empty() {
+                    self.status_message = format!("{preset_name}: {line}");
+                }
             }
             ProcessEvent::Exited {
                 preset_name,
@@ -315,17 +308,12 @@ impl AppState {
                 } else {
                     ConnectionStatus::Failed
                 };
-                connection.push_output("ssh", format!("exited with {status}"));
                 self.status_message = format!("{preset_name} exited with {status}.");
             }
-            ProcessEvent::Stopped {
-                preset_name,
-                status,
-            } => {
+            ProcessEvent::Stopped { preset_name, .. } => {
                 self.handles.remove(&preset_name);
                 let connection = self.connections.entry(preset_name.clone()).or_default();
                 connection.status = ConnectionStatus::Stopped;
-                connection.push_output("molenest", format!("stopped with {status}"));
                 self.status_message = format!("{preset_name} stopped.");
             }
         }
@@ -351,19 +339,6 @@ struct ConnectionState {
     status: ConnectionStatus,
     pid: Option<u32>,
     started_at: Option<OffsetDateTime>,
-    command_summary: String,
-    output: Vec<String>,
-}
-
-impl ConnectionState {
-    fn push_output(&mut self, stream: &str, line: String) {
-        self.output.push(format!("[{stream}] {line}"));
-        const MAX_OUTPUT_LINES: usize = 120;
-        if self.output.len() > MAX_OUTPUT_LINES {
-            let overflow = self.output.len() - MAX_OUTPUT_LINES;
-            self.output.drain(0..overflow);
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -426,19 +401,11 @@ fn details_for_state(state: &AppState) -> ConnectionDetails {
             name: SharedString::from(""),
             status: SharedString::from("No preset selected"),
             local_url: SharedString::from(""),
-            command: SharedString::from(""),
             started_at: SharedString::from(""),
-            output: SharedString::from(""),
         };
     };
 
     let connection = state.connection_for(&preset.name);
-    let command = if connection.command_summary.is_empty() {
-        ssh::build_ssh_command(&state.config.defaults.ssh_binary, preset).summary()
-    } else {
-        connection.command_summary.clone()
-    };
-
     let started_at = connection
         .started_at
         .and_then(|value| value.format(&Rfc3339).ok())
@@ -448,9 +415,7 @@ fn details_for_state(state: &AppState) -> ConnectionDetails {
         name: preset.name.as_str().into(),
         status: status_with_pid(connection.status, connection.pid).into(),
         local_url: preset.local_url().into(),
-        command: command.into(),
         started_at: started_at.into(),
-        output: connection.output.join("\n").into(),
     }
 }
 

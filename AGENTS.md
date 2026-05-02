@@ -152,7 +152,8 @@ Expected UI areas:
 
 - A preset list showing name, SSH host, local port, remote host, remote port, and current status.
 - Start and stop controls for the selected preset.
-- A connection detail area showing command summary, local URL, process state, start time, and recent SSH output.
+- A connection detail area showing local URL, process state, and start time.
+- A bottom message area for user-facing errors, including recent SSH stderr when useful.
 - An add-preset button that opens a focused form for name, host, local port, remote host, and remote port.
 - A visible configuration path and reload action.
 - A doctor/check action for config validity and SSH availability.
@@ -188,15 +189,14 @@ Runtime connection state should include:
 - remote port
 - SSH host
 - start timestamp
-- command summary, excluding sensitive values
 - current status: idle, starting, running, stopping, stopped, failed, exited
-- recent stdout/stderr lines where available
+- recent user-facing error message when available
 - exit status when available
 
 Implementation notes:
 
 - Construct and spawn `ssh` as a child process.
-- Capture stderr so failures such as bad host aliases, authentication errors, or port binding errors can be shown in the UI.
+- Capture stderr so failures such as bad host aliases, authentication errors, or port binding errors can be summarized in the UI message area.
 - Do not block the Slint event loop while waiting for SSH.
 - Use background tasks, channels, or Slint event-loop invocation APIs to update UI state from process watchers.
 - On app shutdown, terminate running children and wait briefly where practical.
@@ -336,7 +336,7 @@ When UI changes are substantial, run the app locally and visually inspect the ma
 5. Implement SSH command argument construction.
 6. Render the preset list in the Slint UI.
 7. Implement start/stop process management for a selected preset.
-8. Stream process status and recent stderr/stdout into the UI.
+8. Stream process status and recent stderr errors into the UI message area.
 9. Stop all managed processes on application shutdown.
 10. Implement add/edit/remove/reload config flows.
 11. Implement doctor checks for config validity and SSH availability.
@@ -375,7 +375,7 @@ Inspect a failure:
 
 ```text
 Select a failed connection.
-Review recent SSH output in the detail panel.
+Review the message area for the most recent SSH error.
 Fix the host alias, SSH config, or local port conflict.
 Press Start again.
 ```
