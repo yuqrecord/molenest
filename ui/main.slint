@@ -63,7 +63,7 @@ component PresetListPanel inherits Rectangle {
 
         HorizontalLayout {
             spacing: 12px;
-            alignment: center;
+            alignment: start;
 
             Text {
                 text: "Presets";
@@ -91,13 +91,13 @@ component PresetListPanel inherits Rectangle {
                 padding-left: 10px;
                 padding-right: 10px;
                 spacing: 14px;
-                alignment: center;
+                alignment: start;
 
                 Text { text: "Active"; color: #566276; font-size: 13px; font-weight: 700; width: 76px; horizontal-stretch: 0; horizontal-alignment: left; }
-                Text { text: "Name"; color: #566276; font-size: 13px; font-weight: 700; horizontal-stretch: 2; overflow: elide; }
+                Text { text: "Name"; color: #566276; font-size: 13px; font-weight: 700; horizontal-stretch: 2; horizontal-alignment: left; overflow: elide; }
                 Text { text: "Local"; color: #566276; font-size: 13px; font-weight: 700; width: 70px; horizontal-stretch: 0; horizontal-alignment: left; }
-                Text { text: "Host"; color: #566276; font-size: 13px; font-weight: 700; horizontal-stretch: 2; overflow: elide; }
-                Text { text: "Remote"; color: #566276; font-size: 13px; font-weight: 700; horizontal-stretch: 2; overflow: elide; }
+                Text { text: "Host"; color: #566276; font-size: 13px; font-weight: 700; horizontal-stretch: 2; horizontal-alignment: left; overflow: elide; }
+                Text { text: "Remote"; color: #566276; font-size: 13px; font-weight: 700; horizontal-stretch: 2; horizontal-alignment: left; overflow: elide; }
                 Text { text: "Status"; color: #566276; font-size: 13px; font-weight: 700; width: 190px; horizontal-stretch: 0; horizontal-alignment: left; }
             }
         }
@@ -124,7 +124,7 @@ component PresetListPanel inherits Rectangle {
                     padding-left: 10px;
                     padding-right: 10px;
                     spacing: 14px;
-                    alignment: center;
+                    alignment: start;
 
                     Rectangle {
                         width: 76px;
@@ -179,6 +179,7 @@ component PresetListPanel inherits Rectangle {
                     VerticalLayout {
                         width: 190px;
                         horizontal-stretch: 0;
+                        alignment: start;
                         spacing: 2px;
 
                         Text {
