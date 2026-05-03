@@ -229,6 +229,7 @@ export component MainWindow inherits Window {
     in property <[PresetRow]> presets;
     in property <PresetColumnWidths> column-widths;
     in property <string> status-message;
+    in property <string> add-preset-message;
     in property <string> config-path;
     in-out property <string> draft-name;
     in-out property <string> draft-host;
@@ -239,6 +240,7 @@ export component MainWindow inherits Window {
 
     callback toggle-requested(int);
     callback reload-requested();
+    callback open-add-preset-requested();
     callback add-preset-requested();
 
     VerticalLayout {
@@ -299,7 +301,7 @@ export component MainWindow inherits Window {
         PresetListPanel {
             presets: root.presets;
             column-widths: root.column-widths;
-            add-preset => { root.add-dialog-open = true; }
+            add-preset => { root.open-add-preset-requested(); }
             toggle(index) => { root.toggle-requested(index); }
         }
     }
@@ -354,7 +356,7 @@ export component MainWindow inherits Window {
                     background: #f3f5f8;
                     border-radius: 6px;
                     Text {
-                        text: root.status-message;
+                        text: root.add-preset-message == "" ? "Preset form messages" : root.add-preset-message;
                         color: #475467;
                         wrap: word-wrap;
                         vertical-alignment: center;

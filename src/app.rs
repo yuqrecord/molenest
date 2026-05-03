@@ -47,7 +47,7 @@ fn connect_callbacks(
         let result = toggle_state
             .borrow_mut()
             .toggle_preset(index, toggle_tx.clone());
-        handle_callback_result(result, &toggle_state);
+        handle_main_callback_result(result, &toggle_state);
         if let Some(window) = window_weak.upgrade() {
             sync_window(&window, &toggle_state.borrow());
         }
@@ -57,9 +57,19 @@ fn connect_callbacks(
     let reload_state = Rc::clone(&state);
     window.on_reload_requested(move || {
         let result = reload_state.borrow_mut().reload_config();
-        handle_callback_result(result, &reload_state);
+        handle_main_callback_result(result, &reload_state);
         if let Some(window) = window_weak.upgrade() {
             sync_window(&window, &reload_state.borrow());
+        }
+    });
+
+    let window_weak = window.as_weak();
+    let open_add_state = Rc::clone(&state);
+    window.on_open_add_preset_requested(move || {
+        open_add_state.borrow_mut().add_preset_message.clear();
+        if let Some(window) = window_weak.upgrade() {
+            window.set_add_dialog_open(true);
+            sync_window(&window, &open_add_state.borrow());
         }
     });
 
@@ -76,7 +86,7 @@ fn connect_callbacks(
             };
             let result = add_state.borrow_mut().add_preset(draft);
             let added = result.is_ok();
-            handle_callback_result(result, &add_state);
+            handle_add_preset_result(result, &add_state);
             if added {
                 clear_draft_fields(&window);
                 window.set_add_dialog_open(false);
@@ -107,9 +117,15 @@ fn start_event_timer(
     timer
 }
 
-fn handle_callback_result(result: Result<()>, state: &Rc<RefCell<AppState>>) {
+fn handle_main_callback_result(result: Result<()>, state: &Rc<RefCell<AppState>>) {
     if let Err(error) = result {
         state.borrow_mut().status_message = format!("{error:#}");
+    }
+}
+
+fn handle_add_preset_result(result: Result<()>, state: &Rc<RefCell<AppState>>) {
+    if let Err(error) = result {
+        state.borrow_mut().add_preset_message = format!("{error:#}");
     }
 }
 
@@ -118,6 +134,7 @@ struct AppState {
     config_path: PathBuf,
     config: Config,
     status_message: String,
+    add_preset_message: String,
     connections: HashMap<String, ConnectionState>,
     handles: HashMap<String, ManagedProcess>,
 }
@@ -130,6 +147,7 @@ impl AppState {
             config_path,
             config,
             status_message,
+            add_preset_message: String::new(),
             connections: HashMap::new(),
             handles: HashMap::new(),
         })
@@ -205,6 +223,7 @@ impl AppState {
         self.config.forwards.push(preset.clone());
         self.config.save(&self.config_path)?;
         self.status_message = format!("Added preset {}.", preset.name);
+        self.add_preset_message.clear();
         Ok(())
     }
 
@@ -338,6 +357,7 @@ fn sync_window(window: &MainWindow, state: &AppState) {
     window.set_column_widths(column_widths);
     window.set_config_path(state.config_path.display().to_string().into());
     window.set_status_message(state.status_message.as_str().into());
+    window.set_add_preset_message(state.add_preset_message.as_str().into());
 }
 
 fn column_widths(rows: &[PresetRow]) -> PresetColumnWidths {
