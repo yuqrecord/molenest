@@ -57,6 +57,7 @@ component ConnectionToggle inherits Rectangle {
 component PresetListPanel inherits Rectangle {
     in property <[PresetRow]> presets;
     in property <PresetColumnWidths> column-widths;
+    in-out property <length> table-viewport-x;
 
     callback add-preset();
     callback toggle(int);
@@ -96,8 +97,10 @@ component PresetListPanel inherits Rectangle {
             height: 38px;
             border-radius: 6px;
             background: #f3f6fa;
+            clip: true;
 
-            HorizontalLayout {
+            header-layout := HorizontalLayout {
+                x: root.table-viewport-x;
                 padding-left: 10px;
                 padding-right: 10px;
                 spacing: 14px;
@@ -124,7 +127,9 @@ component PresetListPanel inherits Rectangle {
             }
         }
 
-        ListView {
+        preset-list := ListView {
+            viewport-x <=> root.table-viewport-x;
+
             for row[index] in root.presets : Rectangle {
                 height: 58px;
                 border-radius: 6px;
