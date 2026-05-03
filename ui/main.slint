@@ -61,6 +61,7 @@ component PresetListPanel inherits Rectangle {
 
     callback add-preset();
     callback toggle(int);
+    callback edit(int);
 
     border-color: #d9e1ec;
     border-width: 1px;
@@ -134,6 +135,17 @@ component PresetListPanel inherits Rectangle {
                 height: 58px;
                 border-radius: 6px;
                 background: Math.mod(index, 2) == 0 ? #ffffff : #f9fbfd;
+
+                TouchArea {
+                    width: parent.width;
+                    height: parent.height;
+
+                    pointer-event(event) => {
+                        if event.button == PointerEventButton.right && event.kind == PointerEventKind.down {
+                            root.edit(index);
+                        }
+                    }
+                }
 
                 HorizontalLayout {
                     padding-left: 10px;
@@ -235,18 +247,29 @@ export component MainWindow inherits Window {
     in property <PresetColumnWidths> column-widths;
     in property <string> status-message;
     in property <string> add-preset-message;
+    in property <string> edit-preset-message;
     in property <string> config-path;
     in-out property <string> draft-name;
     in-out property <string> draft-host;
     in-out property <string> draft-local-port;
     in-out property <string> draft-remote-host: "127.0.0.1";
     in-out property <string> draft-remote-port;
+    in-out property <string> edit-name;
+    in-out property <string> edit-host;
+    in-out property <string> edit-local-port;
+    in-out property <string> edit-remote-host;
+    in-out property <string> edit-remote-port;
     in-out property <bool> add-dialog-open;
+    in-out property <bool> edit-dialog-open;
+    in-out property <bool> delete-confirm-open;
 
     callback toggle-requested(int);
     callback reload-requested();
     callback open-add-preset-requested();
     callback add-preset-requested();
+    callback edit-preset-open-requested(int);
+    callback edit-preset-save-requested();
+    callback edit-preset-delete-requested();
 
     VerticalLayout {
         padding: 18px;
@@ -308,6 +331,7 @@ export component MainWindow inherits Window {
             column-widths: root.column-widths;
             add-preset => { root.open-add-preset-requested(); }
             toggle(index) => { root.toggle-requested(index); }
+            edit(index) => { root.edit-preset-open-requested(index); }
         }
     }
 
@@ -378,6 +402,115 @@ export component MainWindow inherits Window {
                     Button {
                         text: "Add";
                         clicked => { root.add-preset-requested(); }
+                    }
+                }
+            }
+        }
+    }
+
+    if root.edit-dialog-open : Rectangle {
+        x: 0px;
+        y: 0px;
+        width: root.width;
+        height: root.height;
+        background: #00000066;
+
+        TouchArea {}
+
+        Rectangle {
+            width: root.width < 560px ? root.width - 36px : 520px;
+            height: root.height < 660px ? root.height - 48px : 600px;
+            x: (root.width - self.width) / 2;
+            y: (root.height - self.height) / 2;
+            border-radius: 8px;
+            border-color: #c9d2df;
+            border-width: 1px;
+            background: white;
+
+            VerticalLayout {
+                padding: 18px;
+                spacing: 10px;
+
+                Text {
+                    text: "Edit Preset";
+                    font-size: 22px;
+                    font-weight: 700;
+                    color: #20242a;
+                }
+
+                Text { text: "Name"; color: #657080; }
+                LineEdit { text <=> root.edit-name; }
+
+                Text { text: "Host"; color: #657080; }
+                LineEdit { text <=> root.edit-host; }
+
+                Text { text: "Local Port"; color: #657080; }
+                LineEdit { text <=> root.edit-local-port; input-type: number; }
+
+                Text { text: "Remote Host"; color: #657080; }
+                LineEdit { text <=> root.edit-remote-host; }
+
+                Text { text: "Remote Port"; color: #657080; }
+                LineEdit { text <=> root.edit-remote-port; input-type: number; }
+
+                Rectangle {
+                    height: root.delete-confirm-open ? 70px : 42px;
+                    background: root.delete-confirm-open ? #fff5f4 : #f3f5f8;
+                    border-radius: 6px;
+
+                    if !root.delete-confirm-open : Text {
+                        text: root.edit-preset-message == "" ? "Preset edit messages" : root.edit-preset-message;
+                        color: #475467;
+                        wrap: word-wrap;
+                        vertical-alignment: center;
+                    }
+
+                    if root.delete-confirm-open : VerticalLayout {
+                        padding: 8px;
+                        spacing: 6px;
+                        Text {
+                            text: "Delete this preset?";
+                            color: #b42318;
+                            font-weight: 700;
+                        }
+                        Text {
+                            text: root.edit-name;
+                            color: #475467;
+                            overflow: elide;
+                        }
+                    }
+                }
+
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 8px;
+
+                    if !root.delete-confirm-open : Button {
+                        text: "Delete";
+                        clicked => { root.delete-confirm-open = true; }
+                    }
+
+                    if root.delete-confirm-open : Button {
+                        text: "Cancel Delete";
+                        clicked => { root.delete-confirm-open = false; }
+                    }
+
+                    if root.delete-confirm-open : Button {
+                        text: "Confirm Delete";
+                        clicked => { root.edit-preset-delete-requested(); }
+                    }
+
+                    Button {
+                        text: "Cancel";
+                        clicked => {
+                            root.edit-dialog-open = false;
+                            root.delete-confirm-open = false;
+                        }
+                    }
+
+                    if !root.delete-confirm-open : Button {
+                        text: "Save";
+                        clicked => { root.edit-preset-save-requested(); }
                     }
                 }
             }

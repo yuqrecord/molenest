@@ -94,6 +94,69 @@ fn connect_callbacks(
             sync_window(&window, &add_state.borrow());
         }
     });
+
+    let window_weak = window.as_weak();
+    let edit_open_state = Rc::clone(&state);
+    window.on_edit_preset_open_requested(move |index| {
+        let result = edit_open_state.borrow_mut().open_edit_preset(index);
+        match result {
+            Ok(preset) => {
+                if let Some(window) = window_weak.upgrade() {
+                    populate_edit_fields(&window, &preset);
+                    window.set_delete_confirm_open(false);
+                    window.set_edit_dialog_open(true);
+                    sync_window(&window, &edit_open_state.borrow());
+                }
+            }
+            Err(error) => {
+                edit_open_state.borrow_mut().status_message = format!("{error:#}");
+                if let Some(window) = window_weak.upgrade() {
+                    sync_window(&window, &edit_open_state.borrow());
+                }
+            }
+        }
+    });
+
+    let window_weak = window.as_weak();
+    let edit_save_state = Rc::clone(&state);
+    window.on_edit_preset_save_requested(move || {
+        if let Some(window) = window_weak.upgrade() {
+            let draft = PresetDraft {
+                name: window.get_edit_name().to_string(),
+                host: window.get_edit_host().to_string(),
+                local_port: window.get_edit_local_port().to_string(),
+                remote_host: window.get_edit_remote_host().to_string(),
+                remote_port: window.get_edit_remote_port().to_string(),
+            };
+            let result = edit_save_state.borrow_mut().update_edit_preset(draft);
+            let saved = result.is_ok();
+            handle_edit_preset_result(result, &edit_save_state);
+            if saved {
+                clear_edit_fields(&window);
+                window.set_delete_confirm_open(false);
+                window.set_edit_dialog_open(false);
+            }
+            sync_window(&window, &edit_save_state.borrow());
+        }
+    });
+
+    let window_weak = window.as_weak();
+    let edit_delete_state = Rc::clone(&state);
+    window.on_edit_preset_delete_requested(move || {
+        if let Some(window) = window_weak.upgrade() {
+            let result = edit_delete_state.borrow_mut().delete_edit_preset();
+            let deleted = result.is_ok();
+            handle_edit_preset_result(result, &edit_delete_state);
+            if deleted {
+                clear_edit_fields(&window);
+                window.set_delete_confirm_open(false);
+                window.set_edit_dialog_open(false);
+            } else {
+                window.set_delete_confirm_open(false);
+            }
+            sync_window(&window, &edit_delete_state.borrow());
+        }
+    });
 }
 
 fn start_event_timer(
@@ -129,12 +192,20 @@ fn handle_add_preset_result(result: Result<()>, state: &Rc<RefCell<AppState>>) {
     }
 }
 
+fn handle_edit_preset_result(result: Result<()>, state: &Rc<RefCell<AppState>>) {
+    if let Err(error) = result {
+        state.borrow_mut().edit_preset_message = format!("{error:#}");
+    }
+}
+
 #[derive(Debug)]
 struct AppState {
     config_path: PathBuf,
     config: Config,
     status_message: String,
     add_preset_message: String,
+    edit_preset_message: String,
+    editing_preset_name: Option<String>,
     connections: HashMap<String, ConnectionState>,
     handles: HashMap<String, ManagedProcess>,
 }
@@ -148,6 +219,8 @@ impl AppState {
             config,
             status_message,
             add_preset_message: String::new(),
+            edit_preset_message: String::new(),
+            editing_preset_name: None,
             connections: HashMap::new(),
             handles: HashMap::new(),
         })
@@ -220,11 +293,81 @@ impl AppState {
             return Err(anyhow!("Preset already exists: {}", preset.name));
         }
 
-        self.config.forwards.push(preset.clone());
-        self.config.save(&self.config_path)?;
+        let mut config = self.config.clone();
+        config.forwards.push(preset.clone());
+        config.save(&self.config_path)?;
+        self.config = config;
         self.status_message = format!("Added preset {}.", preset.name);
         self.add_preset_message.clear();
         Ok(())
+    }
+
+    fn open_edit_preset(&mut self, index: i32) -> Result<ForwardPreset> {
+        let preset = self.preset_at(index)?.clone();
+        self.editing_preset_name = Some(preset.name.clone());
+        self.edit_preset_message.clear();
+        Ok(preset)
+    }
+
+    fn update_edit_preset(&mut self, draft: PresetDraft) -> Result<()> {
+        let original_name = self.editing_preset_name()?;
+        self.ensure_preset_not_running(&original_name, "editing")?;
+
+        let mut config = self.config.clone();
+        let original_index = config
+            .forwards
+            .iter()
+            .position(|preset| preset.name == original_name)
+            .ok_or_else(|| anyhow!("Unknown preset: {original_name}"))?;
+
+        let mut preset = draft.into_preset()?;
+        if preset.name != original_name && self.config.find_preset(&preset.name).is_some() {
+            return Err(anyhow!("Preset already exists: {}", preset.name));
+        }
+
+        let original = config.forwards[original_index].clone();
+        preset.bind_address = original.bind_address;
+        preset.extra_args = original.extra_args;
+
+        config.forwards[original_index] = preset.clone();
+        config.save(&self.config_path)?;
+        self.config = config;
+        if preset.name != original_name {
+            self.connections.remove(&original_name);
+        }
+        self.editing_preset_name = Some(preset.name.clone());
+        self.edit_preset_message.clear();
+        self.status_message = format!("Updated preset {}.", preset.name);
+        Ok(())
+    }
+
+    fn delete_edit_preset(&mut self) -> Result<()> {
+        let preset_name = self.editing_preset_name()?;
+        self.ensure_preset_not_running(&preset_name, "deleting")?;
+
+        let mut config = self.config.clone();
+        config.remove_preset(&preset_name)?;
+        config.save(&self.config_path)?;
+        self.config = config;
+        self.connections.remove(&preset_name);
+        self.editing_preset_name = None;
+        self.edit_preset_message.clear();
+        self.status_message = format!("Deleted preset {preset_name}.");
+        Ok(())
+    }
+
+    fn editing_preset_name(&self) -> Result<String> {
+        self.editing_preset_name
+            .clone()
+            .ok_or_else(|| anyhow!("No preset is selected for editing."))
+    }
+
+    fn ensure_preset_not_running(&self, preset_name: &str, action: &str) -> Result<()> {
+        if self.handles.contains_key(preset_name) {
+            Err(anyhow!("Stop {preset_name} before {action} it."))
+        } else {
+            Ok(())
+        }
     }
 
     fn preflight_start(&self, preset: &ForwardPreset) -> Result<()> {
@@ -358,6 +501,7 @@ fn sync_window(window: &MainWindow, state: &AppState) {
     window.set_config_path(state.config_path.display().to_string().into());
     window.set_status_message(state.status_message.as_str().into());
     window.set_add_preset_message(state.add_preset_message.as_str().into());
+    window.set_edit_preset_message(state.edit_preset_message.as_str().into());
 }
 
 fn column_widths(rows: &[PresetRow]) -> PresetColumnWidths {
@@ -482,6 +626,22 @@ fn clear_draft_fields(window: &MainWindow) {
     window.set_draft_remote_port(SharedString::from(""));
 }
 
+fn populate_edit_fields(window: &MainWindow, preset: &ForwardPreset) {
+    window.set_edit_name(SharedString::from(preset.name.as_str()));
+    window.set_edit_host(SharedString::from(preset.host.as_str()));
+    window.set_edit_local_port(SharedString::from(preset.local_port.to_string()));
+    window.set_edit_remote_host(SharedString::from(preset.remote_host.as_str()));
+    window.set_edit_remote_port(SharedString::from(preset.remote_port.to_string()));
+}
+
+fn clear_edit_fields(window: &MainWindow) {
+    window.set_edit_name(SharedString::from(""));
+    window.set_edit_host(SharedString::from(""));
+    window.set_edit_local_port(SharedString::from(""));
+    window.set_edit_remote_host(SharedString::from(""));
+    window.set_edit_remote_port(SharedString::from(""));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -533,6 +693,59 @@ mod tests {
         assert_eq!(short.active, long.active);
     }
 
+    #[test]
+    fn edit_updates_selected_preset() {
+        let mut state = test_state(vec![forward_preset("old"), forward_preset("other")]);
+        state.open_edit_preset(0).unwrap();
+
+        state
+            .update_edit_preset(PresetDraft {
+                name: "new".to_string(),
+                host: "new-host".to_string(),
+                local_port: "9999".to_string(),
+                remote_host: "127.0.0.1".to_string(),
+                remote_port: "9998".to_string(),
+            })
+            .unwrap();
+
+        let preset = state.config.find_preset("new").unwrap();
+        assert_eq!(preset.host, "new-host");
+        assert_eq!(preset.local_port, 9999);
+        assert!(state.config.find_preset("old").is_none());
+        assert_eq!(state.status_message, "Updated preset new.");
+    }
+
+    #[test]
+    fn edit_rejects_duplicate_preset_name() {
+        let mut state = test_state(vec![forward_preset("old"), forward_preset("taken")]);
+        state.open_edit_preset(0).unwrap();
+
+        let result = state.update_edit_preset(PresetDraft {
+            name: "taken".to_string(),
+            host: "server".to_string(),
+            local_port: "8888".to_string(),
+            remote_host: "127.0.0.1".to_string(),
+            remote_port: "8888".to_string(),
+        });
+
+        assert!(result.is_err());
+        assert!(state.config.find_preset("old").is_some());
+        assert!(state.config.find_preset("taken").is_some());
+    }
+
+    #[test]
+    fn delete_removes_selected_preset() {
+        let mut state = test_state(vec![forward_preset("old"), forward_preset("kept")]);
+        state.open_edit_preset(0).unwrap();
+
+        state.delete_edit_preset().unwrap();
+
+        assert!(state.config.find_preset("old").is_none());
+        assert!(state.config.find_preset("kept").is_some());
+        assert_eq!(state.editing_preset_name, None);
+        assert_eq!(state.status_message, "Deleted preset old.");
+    }
+
     fn preset_row(name: &str, host: &str, remote: &str) -> PresetRow {
         PresetRow {
             name: name.into(),
@@ -541,6 +754,45 @@ mod tests {
             remote: remote.into(),
             status: "Idle".into(),
             status_time: "".into(),
+        }
+    }
+
+    fn test_state(forwards: Vec<ForwardPreset>) -> AppState {
+        AppState {
+            config_path: test_config_path(),
+            config: Config {
+                defaults: Default::default(),
+                forwards,
+            },
+            status_message: String::new(),
+            add_preset_message: String::new(),
+            edit_preset_message: String::new(),
+            editing_preset_name: None,
+            connections: HashMap::new(),
+            handles: HashMap::new(),
+        }
+    }
+
+    fn test_config_path() -> PathBuf {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "molenest-edit-test-{}-{nanos}.toml",
+            std::process::id()
+        ))
+    }
+
+    fn forward_preset(name: &str) -> ForwardPreset {
+        ForwardPreset {
+            name: name.to_string(),
+            host: "server".to_string(),
+            local_port: 8888,
+            remote_host: "127.0.0.1".to_string(),
+            remote_port: 8888,
+            bind_address: None,
+            extra_args: vec![],
         }
     }
 }
