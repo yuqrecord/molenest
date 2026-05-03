@@ -41,25 +41,15 @@ fn connect_callbacks(
     event_tx: Sender<ProcessEvent>,
 ) {
     let window_weak = window.as_weak();
-    let start_state = Rc::clone(&state);
-    let start_tx = event_tx.clone();
-    window.on_start_requested(move |index| {
-        let result = start_state
+    let toggle_state = Rc::clone(&state);
+    let toggle_tx = event_tx.clone();
+    window.on_toggle_requested(move |index| {
+        let result = toggle_state
             .borrow_mut()
-            .start_preset(index, start_tx.clone());
-        handle_callback_result(result, &start_state);
+            .toggle_preset(index, toggle_tx.clone());
+        handle_callback_result(result, &toggle_state);
         if let Some(window) = window_weak.upgrade() {
-            sync_window(&window, &start_state.borrow());
-        }
-    });
-
-    let window_weak = window.as_weak();
-    let stop_state = Rc::clone(&state);
-    window.on_stop_requested(move |index| {
-        let result = stop_state.borrow_mut().stop_preset(index);
-        handle_callback_result(result, &stop_state);
-        if let Some(window) = window_weak.upgrade() {
-            sync_window(&window, &stop_state.borrow());
+            sync_window(&window, &toggle_state.borrow());
         }
     });
 
@@ -175,6 +165,15 @@ impl AppState {
         self.handles.insert(preset.name.clone(), handle);
         self.status_message = format!("{} is running.", preset.name);
         Ok(())
+    }
+
+    fn toggle_preset(&mut self, index: i32, event_tx: Sender<ProcessEvent>) -> Result<()> {
+        let preset_name = self.preset_at(index)?.name.clone();
+        if self.handles.contains_key(&preset_name) {
+            self.stop_preset(index)
+        } else {
+            self.start_preset(index, event_tx)
+        }
     }
 
     fn stop_preset(&mut self, index: i32) -> Result<()> {

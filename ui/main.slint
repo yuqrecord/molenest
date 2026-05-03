@@ -9,12 +9,47 @@ export struct PresetRow {
     status-time: string,
 }
 
+component ConnectionToggle inherits Rectangle {
+    in property <bool> checked;
+    in property <bool> enabled: true;
+
+    callback toggled(bool);
+
+    width: 56px;
+    height: 28px;
+    border-radius: 14px;
+    border-width: 1px;
+    border-color: root.checked ? #027a48 : #98a2b3;
+    background: root.checked ? #12b76a : #d0d5dd;
+    opacity: root.enabled ? 1 : 0.55;
+
+    Rectangle {
+        width: 22px;
+        height: 22px;
+        x: root.checked ? 31px : 3px;
+        y: 3px;
+        border-radius: 11px;
+        background: #ffffff;
+        border-width: 1px;
+        border-color: #ffffff;
+    }
+
+    TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => {
+            if root.enabled {
+                root.toggled(!root.checked);
+            }
+        }
+    }
+}
+
 component PresetListPanel inherits Rectangle {
     in property <[PresetRow]> presets;
 
     callback add-preset();
-    callback start(int);
-    callback stop(int);
+    callback toggle(int);
 
     border-color: #d9e1ec;
     border-width: 1px;
@@ -58,8 +93,7 @@ component PresetListPanel inherits Rectangle {
                 spacing: 14px;
                 alignment: center;
 
-                Rectangle { width: 76px; }
-                Rectangle { width: 76px; }
+                Text { text: "Active"; color: #566276; font-size: 13px; font-weight: 700; width: 76px; horizontal-stretch: 0; horizontal-alignment: left; }
                 Text { text: "Name"; color: #566276; font-size: 13px; font-weight: 700; horizontal-stretch: 2; overflow: elide; }
                 Text { text: "Local"; color: #566276; font-size: 13px; font-weight: 700; width: 70px; horizontal-stretch: 0; horizontal-alignment: left; }
                 Text { text: "Host"; color: #566276; font-size: 13px; font-weight: 700; horizontal-stretch: 2; overflow: elide; }
@@ -92,20 +126,17 @@ component PresetListPanel inherits Rectangle {
                     spacing: 14px;
                     alignment: center;
 
-                    Button {
-                        text: "Start";
+                    Rectangle {
                         width: 76px;
-                        height: 25px;
-                        enabled: row.status != "Running";
-                        clicked => { root.start(index); }
-                    }
+                        height: 28px;
+                        horizontal-stretch: 0;
 
-                    Button {
-                        text: "Stop";
-                        width: 76px;
-                        height: 25px;
-                        enabled: row.status == "Running";
-                        clicked => { root.stop(index); }
+                        ConnectionToggle {
+                            x: 0px;
+                            y: 0px;
+                            checked: row.status == "Running";
+                            toggled(_) => { root.toggle(index); }
+                        }
                     }
 
                     Text {
@@ -191,8 +222,7 @@ export component MainWindow inherits Window {
     in-out property <string> draft-remote-port;
     in-out property <bool> add-dialog-open;
 
-    callback start-requested(int);
-    callback stop-requested(int);
+    callback toggle-requested(int);
     callback reload-requested();
     callback add-preset-requested();
 
@@ -254,8 +284,7 @@ export component MainWindow inherits Window {
         PresetListPanel {
             presets: root.presets;
             add-preset => { root.add-dialog-open = true; }
-            start(index) => { root.start-requested(index); }
-            stop(index) => { root.stop-requested(index); }
+            toggle(index) => { root.toggle-requested(index); }
         }
     }
 
