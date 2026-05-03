@@ -36,6 +36,8 @@ component PresetListPanel inherits Rectangle {
                 font-weight: 700;
                 color: #182230;
                 horizontal-stretch: 1;
+                horizontal-alignment: left;
+                vertical-alignment: center;
             }
 
             Button {
@@ -93,6 +95,7 @@ component PresetListPanel inherits Rectangle {
                     Button {
                         text: "Start";
                         width: 76px;
+                        height: 25px;
                         enabled: row.status != "Running";
                         clicked => { root.start(index); }
                     }
@@ -100,6 +103,7 @@ component PresetListPanel inherits Rectangle {
                     Button {
                         text: "Stop";
                         width: 76px;
+                        height: 25px;
                         enabled: row.status == "Running";
                         clicked => { root.stop(index); }
                     }
@@ -205,7 +209,7 @@ export component MainWindow inherits Window {
 
         HorizontalLayout {
             spacing: 22px;
-            alignment: center;
+            alignment: start;
 
             Button {
                 text: "Reload";
@@ -216,9 +220,10 @@ export component MainWindow inherits Window {
             Text {
                 text: root.config-path;
                 color: #566276;
-                font-size: 13px;
+                font-size: 15px;
                 horizontal-stretch: 1;
                 overflow: elide;
+                vertical-alignment: center;
             }
         }
 
@@ -232,7 +237,7 @@ export component MainWindow inherits Window {
             HorizontalLayout {
                 padding-left: 16px;
                 padding-right: 16px;
-                alignment: center;
+                alignment: start;
 
                 Text {
                     text: root.status-message == "" ? "Message" : root.status-message;
