@@ -9,6 +9,15 @@ export struct PresetRow {
     status-time: string,
 }
 
+export struct PresetColumnWidths {
+    active: float,
+    name: float,
+    local-port: float,
+    host: float,
+    remote: float,
+    status: float,
+}
+
 component ConnectionToggle inherits Rectangle {
     in property <bool> checked;
     in property <bool> enabled: true;
@@ -47,6 +56,7 @@ component ConnectionToggle inherits Rectangle {
 
 component PresetListPanel inherits Rectangle {
     in property <[PresetRow]> presets;
+    in property <PresetColumnWidths> column-widths;
 
     callback add-preset();
     callback toggle(int);
@@ -93,12 +103,12 @@ component PresetListPanel inherits Rectangle {
                 spacing: 14px;
                 alignment: start;
 
-                Text { text: "Active"; color: #566276; font-size: 13px; font-weight: 700; width: 76px; horizontal-stretch: 0; horizontal-alignment: left; }
-                Text { text: "Name"; color: #566276; font-size: 13px; font-weight: 700; horizontal-stretch: 2; horizontal-alignment: left; overflow: elide; }
-                Text { text: "Local"; color: #566276; font-size: 13px; font-weight: 700; width: 70px; horizontal-stretch: 0; horizontal-alignment: left; }
-                Text { text: "Host"; color: #566276; font-size: 13px; font-weight: 700; horizontal-stretch: 2; horizontal-alignment: left; overflow: elide; }
-                Text { text: "Remote"; color: #566276; font-size: 13px; font-weight: 700; horizontal-stretch: 2; horizontal-alignment: left; overflow: elide; }
-                Text { text: "Status"; color: #566276; font-size: 13px; font-weight: 700; width: 190px; horizontal-stretch: 0; horizontal-alignment: left; }
+                Text { text: "Active"; color: #566276; font-size: 13px; font-weight: 700; width: root.column-widths.active * 1px; horizontal-stretch: 0; horizontal-alignment: left; }
+                Text { text: "Name"; color: #566276; font-size: 13px; font-weight: 700; width: root.column-widths.name * 1px; horizontal-stretch: 0; horizontal-alignment: left; overflow: elide; }
+                Text { text: "Local"; color: #566276; font-size: 13px; font-weight: 700; width: root.column-widths.local-port * 1px; horizontal-stretch: 0; horizontal-alignment: left; }
+                Text { text: "Host"; color: #566276; font-size: 13px; font-weight: 700; width: root.column-widths.host * 1px; horizontal-stretch: 0; horizontal-alignment: left; overflow: elide; }
+                Text { text: "Remote"; color: #566276; font-size: 13px; font-weight: 700; width: root.column-widths.remote * 1px; horizontal-stretch: 0; horizontal-alignment: left; overflow: elide; }
+                Text { text: "Status"; color: #566276; font-size: 13px; font-weight: 700; width: root.column-widths.status * 1px; horizontal-stretch: 0; horizontal-alignment: left; }
             }
         }
 
@@ -127,7 +137,7 @@ component PresetListPanel inherits Rectangle {
                     alignment: start;
 
                     Rectangle {
-                        width: 76px;
+                        width: root.column-widths.active * 1px;
                         height: 28px;
                         horizontal-stretch: 0;
 
@@ -144,7 +154,8 @@ component PresetListPanel inherits Rectangle {
                         color: #182230;
                         font-size: 15px;
                         font-weight: 700;
-                        horizontal-stretch: 2;
+                        width: root.column-widths.name * 1px;
+                        horizontal-stretch: 0;
                         horizontal-alignment: left;
                         overflow: elide;
                     }
@@ -153,7 +164,7 @@ component PresetListPanel inherits Rectangle {
                         text: row.local-port;
                         color: #344054;
                         font-size: 15px;
-                        width: 70px;
+                        width: root.column-widths.local-port * 1px;
                         horizontal-stretch: 0;
                         horizontal-alignment: left;
                     }
@@ -162,7 +173,8 @@ component PresetListPanel inherits Rectangle {
                         text: row.host;
                         color: #344054;
                         font-size: 15px;
-                        horizontal-stretch: 2;
+                        width: root.column-widths.host * 1px;
+                        horizontal-stretch: 0;
                         horizontal-alignment: left;
                         overflow: elide;
                     }
@@ -171,13 +183,14 @@ component PresetListPanel inherits Rectangle {
                         text: row.remote;
                         color: #344054;
                         font-size: 15px;
-                        horizontal-stretch: 2;
+                        width: root.column-widths.remote * 1px;
+                        horizontal-stretch: 0;
                         horizontal-alignment: left;
                         overflow: elide;
                     }
 
                     VerticalLayout {
-                        width: 190px;
+                        width: root.column-widths.status * 1px;
                         horizontal-stretch: 0;
                         alignment: start;
                         spacing: 2px;
@@ -214,6 +227,7 @@ export component MainWindow inherits Window {
     background: #f5f7fb;
 
     in property <[PresetRow]> presets;
+    in property <PresetColumnWidths> column-widths;
     in property <string> status-message;
     in property <string> config-path;
     in-out property <string> draft-name;
@@ -284,6 +298,7 @@ export component MainWindow inherits Window {
 
         PresetListPanel {
             presets: root.presets;
+            column-widths: root.column-widths;
             add-preset => { root.add-dialog-open = true; }
             toggle(index) => { root.toggle-requested(index); }
         }

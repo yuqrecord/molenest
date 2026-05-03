@@ -332,10 +332,56 @@ fn sync_window(window: &MainWindow, state: &AppState) {
             }
         })
         .collect::<Vec<_>>();
+    let column_widths = column_widths(&rows);
 
     window.set_presets(ModelRc::from(Rc::new(VecModel::from(rows))));
+    window.set_column_widths(column_widths);
     window.set_config_path(state.config_path.display().to_string().into());
     window.set_status_message(state.status_message.as_str().into());
+}
+
+fn column_widths(rows: &[PresetRow]) -> PresetColumnWidths {
+    let mut name = estimated_text_width("Name", 13.0);
+    let mut local_port = estimated_text_width("Local", 13.0);
+    let mut host = estimated_text_width("Host", 13.0);
+    let mut remote = estimated_text_width("Remote", 13.0);
+    let mut status = estimated_text_width("Status", 13.0);
+
+    for row in rows {
+        name = name.max(estimated_text_width(row.name.as_str(), 15.0));
+        local_port = local_port.max(estimated_text_width(row.local_port.as_str(), 15.0));
+        host = host.max(estimated_text_width(row.host.as_str(), 15.0));
+        remote = remote.max(estimated_text_width(row.remote.as_str(), 15.0));
+        status = status.max(estimated_text_width(row.status.as_str(), 14.0));
+        if !row.status_time.is_empty() {
+            status = status.max(estimated_text_width(row.status_time.as_str(), 11.0));
+        }
+    }
+
+    PresetColumnWidths {
+        active: 76.0,
+        name: padded_column_width(name, 64.0),
+        local_port: padded_column_width(local_port, 56.0),
+        host: padded_column_width(host, 64.0),
+        remote: padded_column_width(remote, 112.0),
+        status: padded_column_width(status, 92.0),
+    }
+}
+
+fn padded_column_width(content_width: f32, min_width: f32) -> f32 {
+    content_width.max(min_width) + 18.0
+}
+
+fn estimated_text_width(text: &str, font_size: f32) -> f32 {
+    text.chars()
+        .map(|value| {
+            if value.is_ascii() {
+                font_size * 0.58
+            } else {
+                font_size
+            }
+        })
+        .sum()
 }
 
 fn status_time(connection: ConnectionState) -> String {
@@ -450,5 +496,31 @@ mod tests {
         .into_preset();
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn column_widths_follow_widest_values() {
+        let short = column_widths(&[preset_row("app", "h", "127.0.0.1:1")]);
+        let long = column_widths(&[preset_row(
+            "very-long-notebook-preset",
+            "production-gpu-server",
+            "127.0.0.1:8888",
+        )]);
+
+        assert!(long.name > short.name);
+        assert!(long.host > short.host);
+        assert!(long.remote > short.remote);
+        assert_eq!(short.active, long.active);
+    }
+
+    fn preset_row(name: &str, host: &str, remote: &str) -> PresetRow {
+        PresetRow {
+            name: name.into(),
+            host: host.into(),
+            local_port: "8888".into(),
+            remote: remote.into(),
+            status: "Idle".into(),
+            status_time: "".into(),
+        }
     }
 }
